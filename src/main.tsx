@@ -7,12 +7,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { findViolations } from "./config/envGuard";
+import { stagingEnv, stagingHost } from "./config/stagingEnv";
 import "./styles.css";
 
-const violations = findViolations({
-  env: import.meta.env as unknown as Record<string, string | undefined>,
-  host: typeof window !== "undefined" ? window.location.hostname : undefined,
-});
+const violations = findViolations({ env: stagingEnv, host: stagingHost });
 
 const root = createRoot(document.getElementById("root")!);
 
