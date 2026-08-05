@@ -1,0 +1,27 @@
+{
+  "_comment": "بيانات تجريبية بالكامل. لا شيء هنا مشتق من الإنتاج. الهواتف من نطاق الاختبار 971500000xxx والعناوين وهمية صراحةً.",
+  "products": [
+    { "handle": "stg-amber-oud", "title": "[STG] عنبر وعود", "price": 289, "currency": "AED", "quantity": 12, "is_available": true, "is_vip": false },
+    { "handle": "stg-citrus-dawn", "title": "[STG] فجر حمضي", "price": 245, "currency": "AED", "quantity": 4, "is_available": true, "is_vip": false },
+    { "handle": "stg-velvet-rose", "title": "[STG] ورد مخملي", "price": 310, "currency": "AED", "quantity": 0, "is_available": false, "is_vip": false },
+    { "handle": "stg-royal-musk", "title": "[STG] مسك ملكي", "price": 355, "currency": "AED", "quantity": 3, "is_available": true, "is_vip": true }
+  ],
+  "custom_oils": [
+    { "code": "STG-001", "brand": "[STG] BRAND ALPHA", "name": "MIDNIGHT FIG", "kilo_price": 900 },
+    { "code": "STG-002", "brand": "[STG] BRAND BETA", "name": "SAFFRON SMOKE", "kilo_price": 1400 },
+    { "code": "STG-003", "brand": "[STG] BRAND GAMMA", "name": "WHITE AMBER", "kilo_price": 620 }
+  ],
+  "customers": [
+    { "name": "عميل تجريبي أول", "phone": "971500000001", "address": { "emirate": "دبي", "area": "منطقة تجريبية", "street": "شارع الاختبار", "building": "مبنى ١", "flat": "١٠١" } },
+    { "name": "عميل تجريبي ثانٍ", "phone": "971500000002", "address": { "emirate": "أبوظبي", "area": "منطقة تجريبية ٢", "street": "شارع الاختبار ٢", "building": "مبنى ٢", "flat": "٢٠٢" } }
+  ],
+  "orders": [
+    { "order_number": "STG-1001", "phone": "971500000001", "payment_status": "paid",   "status": "new_order", "total": 289, "items": [{ "handle": "stg-amber-oud", "qty": 1, "unit_price": 289 }] },
+    { "order_number": "STG-1002", "phone": "971500000002", "payment_status": "unpaid", "status": "pending",   "total": 245, "items": [{ "handle": "stg-citrus-dawn", "qty": 1, "unit_price": 245 }] },
+    { "order_number": "STG-1003", "phone": "971500000001", "payment_status": "paid",   "status": "delivered", "total": 355, "items": [{ "handle": "stg-royal-musk", "qty": 1, "unit_price": 355 }] }
+  ],
+  "custom_orders": [
+    { "order_number": "STG-C-2001", "phone": "971500000001", "perfume_code": "STG-001", "perfume_brand": "[STG] BRAND ALPHA", "perfume_name": "MIDNIGHT FIG", "bottle_size": "100ml", "quantity": 1, "unit_price": 300, "payment_status": "paid",   "production_status": "queued",  "shipping_status": "not_shipped", "customer_notes": "ملاحظة تجريبية" },
+    { "order_number": "STG-C-2002", "phone": "971500000002", "perfume_code": "STG-002", "perfume_brand": "[STG] BRAND BETA",  "perfume_name": "SAFFRON SMOKE", "bottle_size": "100ml", "quantity": 2, "unit_price": 320, "payment_status": "unpaid", "production_status": "not_started", "shipping_status": "not_shipped", "customer_notes": null }
+  ]
+}

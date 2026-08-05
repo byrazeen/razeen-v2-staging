@@ -1,0 +1,64 @@
+/* Neutral staging skin. No brand decisions here — art direction is deliberately
+   deferred, so this file stays boring on purpose and is expected to be replaced. */
+:root {
+  --bg: #ffffff; --fg: #16161a; --muted: #6b7280; --line: #e5e7eb;
+  --accent: #1f2937; --accent-fg: #ffffff; --soft: #f7f7f8; --warn: #92400e; --warn-bg: #fef3c7;
+  --radius: 14px; --tap: 44px;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  font-size: 15px; line-height: 1.6; -webkit-text-size-adjust: 100%;
+}
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; color: inherit; }
+.wrap { max-width: 520px; margin: 0 auto; padding: 0 16px 96px; }
+@media (min-width: 900px) { .wrap { max-width: 900px; } }
+
+.hdr { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+.hdr-in { max-width: 520px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
+@media (min-width: 900px) { .hdr-in { max-width: 900px; } }
+.brand { font-weight: 800; letter-spacing: .02em; margin-inline-end: auto; }
+.icon-btn {
+  min-width: var(--tap); min-height: var(--tap); display: inline-flex; align-items: center;
+  justify-content: center; gap: 6px; background: none; border: 1px solid var(--line);
+  border-radius: 12px; cursor: pointer; padding: 0 10px;
+}
+.badge { background: var(--accent); color: var(--accent-fg); border-radius: 999px; font-size: 11px; padding: 1px 7px; }
+
+.field {
+  width: 100%; min-height: var(--tap); padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--soft);
+}
+.field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.btn {
+  min-height: var(--tap); padding: 10px 16px; border-radius: var(--radius);
+  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg);
+  cursor: pointer; font-weight: 700; width: 100%;
+}
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+
+.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--bg); }
+.grid { display: grid; gap: 10px; }
+.grid.two { grid-template-columns: 1fr 1fr; }
+.row { display: flex; align-items: center; gap: 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.tiny { font-size: 12px; }
+h1 { font-size: 20px; margin: 18px 0 10px; }
+h2 { font-size: 16px; margin: 18px 0 8px; }
+
+.tile { display: block; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--soft); min-height: 72px; }
+.tile strong { display: block; }
+
+.placeholder-price { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+.state { text-align: center; padding: 36px 16px; }
+.sk { background: linear-gradient(90deg,#eee,#f6f6f6,#eee); border-radius: 10px; height: 64px; animation: sk 1.2s infinite; }
+@keyframes sk { 0%{opacity:.7} 50%{opacity:1} 100%{opacity:.7} }
+.stepbar { display: flex; gap: 6px; margin: 12px 0; }
+.step { flex: 1; height: 4px; border-radius: 999px; background: var(--line); }
+.step.on { background: var(--accent); }
