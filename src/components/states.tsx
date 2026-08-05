@@ -1,4 +1,8 @@
 /** Loading, empty and error, written once so no screen invents its own. */
+import type { ReactNode } from "react";
+import type { AsyncState } from "@/lib/useAsync";
+import { PLACEHOLDER_PRICE_NOTE } from "@/lib/pricing";
+
 export function Loading({ label = "جاري التحميل…" }: { label?: string }) {
   return (
     <div className="grid" role="status" aria-live="polite" aria-busy="true">
@@ -8,7 +12,7 @@ export function Loading({ label = "جاري التحميل…" }: { label?: stri
   );
 }
 
-export function Empty({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+export function Empty({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
   return (
     <div className="state">
       <p style={{ fontWeight: 700, marginBottom: 6 }}>{title}</p>
@@ -26,4 +30,44 @@ export function ErrorState({ title = "صار خطأ", hint, onRetry }: { title?:
       {onRetry && <button className="btn ghost" onClick={onRetry} style={{ maxWidth: 220, margin: "10px auto 0" }}>حاول مرة ثانية</button>}
     </div>
   );
+}
+
+/**
+ * الحالات الثلاث في مكان واحد: تحميل، ثم خطأ، ثم فراغ، ثم البيانات.
+ * الصفحة تصف حالة النجاح فقط.
+ */
+export function Async<T>({
+  state, empty, isEmpty, children, loadingLabel,
+}: {
+  state: AsyncState<T>;
+  empty?: ReactNode;
+  isEmpty?: (data: NonNullable<T>) => boolean;
+  children: (data: NonNullable<T>) => ReactNode;
+  loadingLabel?: string;
+}) {
+  if (state.loading) return <Loading label={loadingLabel} />;
+  if (state.error) return <ErrorState hint={state.error} onRetry={state.reload} />;
+  // null = لا يوجد سجل: تُعامَل كحالة فراغ، فالصفحة لا ترى قيمة فارغة أبداً.
+  if (state.data === null || state.data === undefined) return <>{empty ?? <Empty title="لا توجد بيانات" />}</>;
+  const data = state.data as NonNullable<T>;
+  if (isEmpty?.(data)) return <>{empty ?? <Empty title="لا توجد بيانات" />}</>;
+  return <>{children(data)}</>;
+}
+
+/**
+ * تنبيه السعر التجريبي. يظهر عند كل سعر — وخصوصاً في إتمام الطلب —
+ * كي لا يُقرأ أي رقم هنا على أنه تسعير معتمد.
+ */
+export function PlaceholderPriceNote({ inline = false }: { inline?: boolean }) {
+  return (
+    <p className="placeholder-price" style={{ display: inline ? "inline-block" : "block", marginTop: 8 }}>
+      ⚠️ {PLACEHOLDER_PRICE_NOTE}
+    </p>
+  );
+}
+
+/** رسالة تحقّق تحت حقل. */
+export function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="tiny" role="alert" style={{ color: "#991b1b", margin: "4px 0 0" }}>{message}</p>;
 }

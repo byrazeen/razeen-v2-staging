@@ -18,6 +18,7 @@ const ALLOWED = new Map([
   ["src/config/productionSignatures.ts", "قائمة الحظر نفسها — الحارس لا يعمل بدونها"],
   ["tests/guard.negative.mjs", "يحقن قيم الإنتاج عمداً ليثبت أن الحارس يرفضها"],
   ["tests/injection-proof.mjs", "يحقن قيم الإنتاج عمداً في سجلّ المحوّلات ليثبت الرفض"],
+  ["tests/staging-env.test.mjs", "يحقن مرجع الإنتاج ليثبت أن الافتراضيات لا تطمسه"],
   ["tests/prod-reference-scan.mjs", "هذا الملف — يحمل الأنماط التي يبحث عنها"],
   ["README.md", "وثيقة تشرح حدود العزل"],
   [".env.example", "يوضّح أي قيمة ممنوعة"],

@@ -3,17 +3,12 @@
  * ready-made perfumes and local component state for custom ones — is what cost
  * the custom flow its coupons, its shipping, its persistence and its recovery.
  */
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { STAGING_PRICING_PLACEHOLDER, type Totals } from "@/lib/pricing";
+import type { OrderLine } from "@/data/repository";
 
-export interface CartLine {
-  id: string;
-  kind: "ready" | "custom";
-  title: string;
-  subtitle?: string;
-  unitPrice: number;
-  quantity: number;
-  isPlaceholderPrice?: boolean;
-}
+/** سطر السلة هو نفسه سطر الطلب — شكل واحد من السلة إلى لوحة الإدارة. */
+export type CartLine = OrderLine;
 
 interface CartApi {
   lines: CartLine[];
@@ -23,12 +18,29 @@ interface CartApi {
   clear(): void;
   count: number;
   subtotal: number;
+  /** المجاميع كلها من مصدر التسعير الوحيد. */
+  totals: Totals;
 }
 
 const Ctx = createContext<CartApi | null>(null);
 
+/** السلة تبقى بعد إعادة التحميل — فقدان السلة عند التحديث سبب مباشر لهجر الطلب. */
+const STORAGE_KEY = "razeen_v2_staging_cart";
+
+function restore(): CartLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as CartLine[]) : [];
+  } catch { return []; }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [lines, setLines] = useState<CartLine[]>([]);
+  const [lines, setLines] = useState<CartLine[]>(restore);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lines)); } catch { /* تخزين غير متاح */ }
+  }, [lines]);
 
   const api = useMemo<CartApi>(() => ({
     lines,
@@ -47,7 +59,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ),
     clear: () => setLines([]),
     count: lines.reduce((n, l) => n + l.quantity, 0),
-    subtotal: lines.reduce((n, l) => n + l.unitPrice * l.quantity, 0),
+    subtotal: STAGING_PRICING_PLACEHOLDER.totals(lines).subtotal,
+    totals: STAGING_PRICING_PLACEHOLDER.totals(lines),
   }), [lines]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

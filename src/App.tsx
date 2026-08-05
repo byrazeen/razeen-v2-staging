@@ -10,6 +10,10 @@ import Discover from "@/pages/Discover";
 import Cart from "@/pages/Cart";
 import Checkout from "@/pages/Checkout";
 import Account from "@/pages/Account";
+import Admin from "@/pages/Admin";
+import AdminOrder from "@/pages/AdminOrder";
+import ProductionQueue from "@/pages/ProductionQueue";
+import Outbox from "@/pages/Outbox";
 
 export default function App() {
   return (
@@ -26,6 +30,11 @@ export default function App() {
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/account" element={<Account />} />
+            {/* staging فقط: لوحة الإدارة خلف دخول وهمي، وصندوق الصادر مفتوح للمراجعة */}
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/orders/:orderNumber" element={<AdminOrder />} />
+            <Route path="/admin/queue" element={<ProductionQueue />} />
+            <Route path="/outbox" element={<Outbox />} />
           </Routes>
         </AppShell>
       </BrowserRouter>
