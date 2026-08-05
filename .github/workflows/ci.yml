@@ -1,0 +1,92 @@
+# بوابات RAZEEN V2 STAGING.
+#
+# كل بوابة هنا تحمي شرطاً واحداً لا يُتنازل عنه: أن هذه البيئة لا تلمس الإنتاج.
+# البوابات مستقلة عن بعضها عمداً — فشل واحدة يجب أن يكون تشخيصاً واضحاً لا
+# تحقيقاً في سجلّ طويل.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# دفعة جديدة تُلغي الجارية على الفرع نفسه — لا فائدة من نتيجة على شيفرة تجاوزتها.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-build:
+    name: TypeScript + Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc -b --force
+      - name: Production build
+        run: npx vite build
+
+  isolation:
+    name: اختبارات العزل + mutation-proof
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: اختبارات العزل السلبية
+        run: npm run test:guard
+      # يُثبت أن الاختبارات تفشل حين يُعطَّل الحارس. بدون هذه الخطوة قد تكون
+      # الاختبارات خضراء لأنها لا تقيس شيئاً.
+      - name: mutation-proof
+        run: npm run test:mutation
+      # أعلى من اختبار الوحدة: الحقن يجب أن يُمنع في مسار التطبيق نفسه.
+      - name: إثبات رفض الحقن
+        run: npm run test:injection
+
+  hygiene:
+    name: الأسرار ومراجع الإنتاج
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # الفحص يمتد إلى التاريخ الكامل: سرّ حُذف في آخر commit يبقى مكشوفاً.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: فحص الأسرار
+        run: node tests/secret-scan.mjs
+      - name: لا ملف .env متتبَّع
+        run: |
+          tracked=$(git ls-files | grep -E '(^|/)\.env(\.|$)' | grep -v '^\.env\.example$' || true)
+          if [ -n "$tracked" ]; then
+            echo "❌ ملفات بيئة متتبَّعة:"; echo "$tracked"; exit 1
+          fi
+          echo "✅ لا ملف بيئة متتبَّع"
+      - name: فحص مراجع الإنتاج
+        run: node tests/prod-reference-scan.mjs
+      - name: لا سرّ في تاريخ Git
+        run: |
+          # يفحص كل blob في التاريخ بحثاً عن شكل JWT أو مفتاح خاص.
+          if git rev-list --objects --all \
+            | git cat-file --batch-check='%(objecttype) %(objectname) %(rest)' \
+            | awk '$1=="blob" {print $2}' \
+            | while read -r sha; do
+                git cat-file blob "$sha" 2>/dev/null \
+                  | grep -qE 'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' \
+                  && echo "$sha" || true
+              done | grep -q .; then
+            echo "❌ سرّ محتمل داخل تاريخ Git"; exit 1
+          fi
+          echo "✅ تاريخ Git نظيف"
