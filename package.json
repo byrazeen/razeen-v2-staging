@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test:guard": "node tests/build-guard.mjs && node tests/guard.negative.mjs",
     "test:mutation": "node tests/build-guard.mjs && node tests/mutation-proof.mjs",
-    "test": "npm run test:guard && npm run test:mutation"
+    "test": "npm run test:guard && npm run test:mutation && npm run test:injection && npm run test:secrets",
+    "test:injection": "node tests/build-guard.mjs && node tests/injection-proof.mjs",
+    "test:secrets": "node tests/secret-scan.mjs && node tests/prod-reference-scan.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
