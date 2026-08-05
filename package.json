@@ -12,7 +12,8 @@
     "test": "npm run test:guard && npm run test:mutation && npm run test:injection && npm run test:secrets",
     "test:injection": "node tests/build-guard.mjs && node tests/injection-proof.mjs",
     "test:secrets": "node tests/secret-scan.mjs && node tests/prod-reference-scan.mjs",
-    "test:rls": "node tests/rls.test.mjs"
+    "test:rls": "node tests/rls.test.mjs",
+    "test:rls:mutation": "node tests/rls-mutation-proof.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

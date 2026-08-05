@@ -111,6 +111,14 @@ async function main() {
   await client.query(sql("supabase/migrations/0003_audit.sql"));
   await client.query(sql("supabase/seed/staging_seed.sql"));
 
+  // مَنفذ للطفرة: يسمح لـrls-mutation-proof.mjs بإضعاف سياسة واحدة بعد تطبيق
+  // الهجرات، ليثبت أن هذه المجموعة تحمرّ فعلاً حين تنكسر الحماية. اختبار لا
+  // يفشل عند إضعاف ما يحرسه لا يثبت شيئاً.
+  if (process.env.RLS_WEAKEN_SQL) {
+    console.log("\n⚠️  وضع الطفرة: " + process.env.RLS_WEAKEN_SQL);
+    await client.query(process.env.RLS_WEAKEN_SQL);
+  }
+
   console.log("\n— الأساس: الجداول وتفعيل RLS —");
   const tables = (await rows(
     `select tablename, rowsecurity from pg_tables
@@ -156,6 +164,27 @@ async function main() {
     check("لا يقرأ السلال", await raises("select * from public.carts"));
     check("لا يقرأ سجل التدقيق", await raises("select * from public.audit_logs"));
   });
+
+  // الفحوص أعلاه تُرفض على طبقة الصلاحيات (لا GRANT للزائر أصلاً)، وهذه حماية
+  // حقيقية لكنها ليست RLS. والفرق مهم: Supabase يمنح anon صلاحيات على جداول
+  // public افتراضياً، فلو أعاد أحد منحها لاحقاً لبقيت RLS وحدها الحاجز. لذلك
+  // نمنح الصلاحية مؤقتاً ونشترط أن تُرجع RLS صفر صفوف — أي أن الطبقة الثانية
+  // تحمي وحدها.
+  console.log("\n— ٢-ب) حتى لو مُنح الزائر الصلاحية، RLS وحدها تحجب —");
+  const GRANTED = ["customers", "orders", "payments", "carts", "audit_logs"];
+  await client.query("begin");
+  try {
+    for (const t of GRANTED) await client.query(`grant select on public.${t} to anon`);
+    await client.query("select set_config('request.jwt.claims', $1, true)",
+      [JSON.stringify({ role: "anon" })]);
+    await client.query("set local role anon");
+    for (const t of GRANTED) {
+      const r = await probe(`select * from public.${t}`);
+      check(`${t}: صفر صف رغم وجود الصلاحية`, !r.threw && r.rowCount === 0);
+    }
+  } finally {
+    await client.query("rollback");
+  }
 
   // --- 3 -------------------------------------------------------------------
   console.log("\n— ٣) العميل لا يغيّر حالة الدفع —");
