@@ -54,6 +54,39 @@ jobs:
       - name: إثبات رفض الحقن
         run: npm run test:injection
 
+  rls:
+    name: RLS وسياسات قاعدة البيانات
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # يطبّق الهجرات والبذرة على قاعدة حقيقية ثم يهاجمها بأدوار حقيقية.
+      # لا شيء يُفحص في نصّ SQL — كل ادعاء يُقاس بما سمحت به القاعدة فعلاً.
+      - name: اختبارات RLS
+        run: npm run test:rls
+      # يكسر ثلاث سياسات عمداً ويشترط أن تحمرّ المجموعة. بدون هذه الخطوة قد
+      # تكون الاختبارات خضراء لأنها لا تصل إلى الطبقة التي تدّعي فحصها.
+      - name: إثبات طفرة RLS
+        run: npm run test:rls:mutation
+
   hygiene:
     name: الأسرار ومراجع الإنتاج
     runs-on: ubuntu-latest

@@ -11,7 +11,9 @@
     "test:mutation": "node tests/build-guard.mjs && node tests/mutation-proof.mjs",
     "test": "npm run test:guard && npm run test:mutation && npm run test:injection && npm run test:secrets",
     "test:injection": "node tests/build-guard.mjs && node tests/injection-proof.mjs",
-    "test:secrets": "node tests/secret-scan.mjs && node tests/prod-reference-scan.mjs"
+    "test:secrets": "node tests/secret-scan.mjs && node tests/prod-reference-scan.mjs",
+    "test:rls": "node tests/rls.test.mjs",
+    "test:rls:mutation": "node tests/rls-mutation-proof.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -23,6 +25,7 @@
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.3.4",
+    "pg": "^8.22.0",
     "typescript": "^5.8.3",
     "vite": "^5.4.19"
   }
