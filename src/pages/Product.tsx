@@ -22,7 +22,7 @@ export default function Product() {
     <Async
       state={state}
       empty={
-        <Empty title="ما لقينا هذا المنتج"
+        <Empty title="ما لقينا هذا المنتج" headingLevel={1}
           action={<Link className="btn ghost" to="/ready" style={{ maxWidth: 240, margin: "14px auto 0" }}>تصفّح المتوفر</Link>} />
       }
     >

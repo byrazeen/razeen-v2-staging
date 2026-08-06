@@ -7,9 +7,37 @@
  * الأيقونات مرسومة يدوياً بـSVG — لا حزمة أيقونات ولا محرف رموز.
  */
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCart } from "@/lib/cart";
+import { arabicCount, ITEM_FORMS } from "@/lib/arabic";
 import { StagingBanner } from "./StagingBanner";
+
+/**
+ * اسم كل صفحة — يُعلَن عند الانتقال.
+ *
+ * `<main key={pathname}>` يعيد بناء المحتوى عند كل انتقال، فيسقط التركيز إلى
+ * <body> بلا أي إعلان: الشاشة تتغيّر كاملةً ولا يسمع القارئ شيئاً. المُعلِن أدناه
+ * يقول اسم الصفحة، والتركيز ينتقل إلى <main> كي تبدأ القراءة من أولها.
+ */
+const PAGE_TITLES: Array<[RegExp, string]> = [
+  [/^\/$/, "الرئيسية"],
+  [/^\/search/, "البحث عن عطر"],
+  [/^\/ready/, "العطور الجاهزة"],
+  [/^\/product\//, "تفاصيل العطر"],
+  [/^\/custom/, "صمّم عطرك الخاص"],
+  [/^\/discover/, "نلقى لك عطرك"],
+  [/^\/cart/, "سلتي"],
+  [/^\/checkout/, "إتمام الطلب"],
+  [/^\/account/, "حسابي"],
+  [/^\/admin\/queue/, "قائمة التصنيع"],
+  [/^\/admin\/orders\//, "تفاصيل الطلب"],
+  [/^\/admin/, "الطلبات"],
+  [/^\/outbox/, "صندوق الصادر"],
+];
+
+function pageTitle(pathname: string): string {
+  return PAGE_TITLES.find(([re]) => re.test(pathname))?.[1] ?? "رزين";
+}
 
 const stroke = {
   fill: "none", stroke: "currentColor", strokeWidth: 1.6,
@@ -42,6 +70,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { count } = useCart();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  const first = useRef(true);
+  const [announced, setAnnounced] = useState("");
+
+  useEffect(() => {
+    const title = pageTitle(pathname);
+    document.title = `${title} · رزين (تجريبي)`;
+    // أول تحميل ليس انتقالاً: لا نسرق التركيز ولا نُعلن ما يقرأه المتصفح أصلاً.
+    if (first.current) { first.current = false; return; }
+    setAnnounced(title);
+    mainRef.current?.focus();
+  }, [pathname]);
   /** شاشات التشغيل ترث نفس الهوية بصوت أخفض: بلا بطل، وكثافة أعلى. */
   const utilitarian = pathname.startsWith("/admin") || pathname === "/outbox";
 
@@ -56,7 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button className="icon-btn" aria-label="البحث عن عطر" onClick={() => navigate("/search")}>
             <IconSearch />
           </button>
-          <button className="icon-btn" aria-label={`السلة — ${count} صنف`} onClick={() => navigate("/cart")}>
+          <button className="icon-btn" aria-label={`السلة — ${arabicCount(count, ITEM_FORMS)}`} onClick={() => navigate("/cart")}>
             <IconBag />{count > 0 && <span className="badge">{count}</span>}
           </button>
           <button className="icon-btn" aria-label="حسابي" onClick={() => navigate("/account")}>
@@ -65,7 +105,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       {/* المفتاح يعيد تشغيل حركة الدخول عند كل انتقال — 340ms، وتُطفأ عند prefers-reduced-motion */}
-      <main className={`wrap ${utilitarian ? "admin" : ""}`.trim()} key={pathname}>{children}</main>
+      <p className="sr-only" role="status" aria-live="polite" data-testid="route-announcer">{announced}</p>
+      <main
+        className={`wrap ${utilitarian ? "admin" : ""}`.trim()}
+        key={pathname}
+        ref={mainRef}
+        id="main"
+        tabIndex={-1}
+        style={{ outline: "none" }}
+      >{children}</main>
       <footer className="foot">
         <span className="lat">RAZEEN V2</span> · نسخة تجريبية للتصميم والاختبار
       </footer>

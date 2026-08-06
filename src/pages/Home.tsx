@@ -30,6 +30,7 @@ export default function Home() {
   return (
     <>
       <section className="hero">
+        {/* كلمة استهلال فوق العنوان — تبقى فقرة كي لا يسبق <h2> الـ<h1>. */}
         <p className="eyebrow">دار عطور · الإمارات</p>
         <h1>عطرك، كما تعرفه أو كما تتخيّله</h1>
         <p>جاهز من الرف، أو مركَّب لك بالحجم الذي تختاره. التوصيل داخل الإمارات.</p>
@@ -46,7 +47,7 @@ export default function Home() {
         />
       </form>
 
-      <p className="eyebrow">وش تبي اليوم؟</p>
+      <h2 className="eyebrow">وش تبي اليوم؟</h2>
       <div className="grid doors">
         {DOORS.map((d) => (
           <Link key={d.to} to={d.to} className={`tile ${d.lead ? "lead" : ""}`.trim()}>
@@ -56,7 +57,7 @@ export default function Home() {
         ))}
       </div>
 
-      <p className="eyebrow">أدوات البيئة التجريبية</p>
+      <h2 className="eyebrow">أدوات البيئة التجريبية</h2>
       <div className="grid two">
         {STAGING_DOORS.map((d) => (
           <Link key={d.to} to={d.to} className="tile">

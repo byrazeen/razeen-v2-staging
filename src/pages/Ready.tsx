@@ -17,17 +17,17 @@ export default function Ready() {
       <Async
         state={state}
         isEmpty={(list) => list.length === 0}
-        empty={<Empty title="الرف فاضي حالياً" hint="جرّب العطر المخصص."
+        empty={<Empty title="الرف فاضي حالياً" hint="جرّب العطر المخصص." headingLevel={2}
           action={<Link className="btn" to="/custom" style={{ maxWidth: 240, margin: "14px auto 0" }}>صمّم عطرك</Link>} />}
       >
         {(list) => {
           const sorted = [...list].sort((a, b) => Number(b.is_available) - Number(a.is_available));
           return (
             <>
-              <p className="eyebrow">
+              <h2 className="eyebrow">
                 <span className="num">{list.filter((p) => p.is_available).length}</span> متوفر من{" "}
                 <span className="num">{list.length}</span>
-              </p>
+              </h2>
               <div className="grid list-2">
                 {sorted.map((p) => {
                   // السعر المخزَّن وحده. بلا سعر صالح ⇒ غير متاح، بلا رقم مُخترع.
