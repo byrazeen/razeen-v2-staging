@@ -12,9 +12,10 @@
  * وfunctions-js إلى الحزمة بلا سطر واحد ينفّذها، ولا يقدر هزّ الشجرة على
  * إسقاطها لأنها كلها مركّبة داخل باني العميل. فالحلّ أن نطلب ما نستعمله.
  *
- * والمصادقة عادت — لكن وحدها: `@supabase/auth-js` مطلوبة بالاسم في
- * `@/lib/anonSession` لأن كل مسار الطلب صار خلف `auth.uid()`. الرمز الذي
- * تصنعه يُركَّب على كل طلب PostgREST هنا، فترى السياسات مستخدماً حقيقياً.
+ * ولا مصادقة إطلاقاً: `@supabase/auth-js` حُذفت من المشروع، ولا سطر هنا ولا
+ * في أي ملف تحت `src/` يلمس GoTrue. هوية المتسوّق صارت رمز ضيف يُرسَل **في
+ * نصّ الاستدعاء** إلى دوال 0010، لا ترويسة `Authorization` — والترويسة تبقى
+ * لمفتاح النشر وحده، أي للدور `anon` كما تراه السياسات.
  *
  * No URL and no key is written in this file. Every value comes from
  * `import.meta.env`. The client is created only after the environment guard
@@ -22,7 +23,6 @@
  * instead of quietly building a client on `undefined`.
  */
 import { PostgrestClient } from "@supabase/postgrest-js";
-import { currentAccessToken } from "@/lib/anonSession";
 import { findViolations } from "@/config/envGuard";
 import { stagingEnv, stagingHost } from "@/config/stagingEnv";
 
@@ -78,20 +78,11 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise
       (AbortSignal as any).any?.([init.signal, timeout]) ?? timeout
     : timeout;
 
-  // رمز الجلسة يُقرأ عند كل طلب لا مرة واحدة عند بناء العميل.
-  //
-  // هذا ليس تفصيلاً: `PostgrestClient` يجمّد ترويساته وقت الإنشاء، والجلسة
-  // تُجدَّد تلقائياً كل ساعة. لو نُسخ الرمز مرة واحدة لبقيت كل الطلبات تحمل
-  // رمزاً منتهياً بعد الساعة الأولى، وRLS ترى `auth.uid()` فارغاً فتُعيد
-  // سلةً فارغة وطلبات صفر — وهو أسوأ من خطأ لأنه يبدو حالةً صحيحة.
-  //
-  // وبلا جلسة يبقى مفتاح النشر كما هو: الرفّ العام مقروء لـanon، ولا شيء من
-  // مسار الطلب مقروء له — بحكم السياسات لا بحكم شرط هنا.
-  const token = currentAccessToken();
-  const headers = new Headers(init?.headers);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
-  return fetch(input, { ...init, headers, signal });
+  // لا رمز جلسة يُركَّب هنا. الترويسات كما بُنيت وقت الإنشاء: مفتاح النشر
+  // وحده، فالدور دائماً `anon`. رمز الضيف ليس اعتماداً على مستوى النقل بل
+  // وسيطٌ في الاستدعاء تتحقّق منه الدالة بنفسها — وهذا هو الفارق كله عن
+  // التصميم السابق.
+  return fetch(input, { ...init, signal });
 }
 
 /**
