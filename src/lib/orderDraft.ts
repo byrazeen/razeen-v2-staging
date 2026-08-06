@@ -6,7 +6,7 @@
  */
 import type { OrderDraft, OrderLine } from "@/data/repositoryContract";
 import type { StructuredAddress } from "@/config/customOrderContract";
-import { totals } from "@/lib/pricing";
+import { isPurchasable, totals } from "@/lib/pricing";
 
 export interface OrderCustomer {
   name: string;
@@ -16,10 +16,14 @@ export interface OrderCustomer {
 
 /** يبني المسوّدة من نفس السطور ونفس الحساب الذي عُرض للعميل. */
 export function buildOrderDraft(lines: OrderLine[], customer: OrderCustomer): OrderDraft {
-  const t = totals(lines);
+  // السطور المحفوظة هي المُسعَّرة نفسها. `totals()` تستبعد ما لا سعر له، فلو
+  // حُفظت السطور كما وردت لحمل الطلب سطراً بصفر لا يدخل مجموعه — سجلٌّ يناقض
+  // نفسه أمام موظف التشغيل. المصدر واحد، فليكن المحفوظ واحداً معه.
+  const priced = lines.filter((l) => isPurchasable(l.unitPriceFils));
+  const t = totals(priced);
   return {
     customer,
-    lines,
+    lines: priced,
     subtotalFils: t.subtotalFils,
     discountFils: t.discountFils,
     shippingFils: t.shippingFils,

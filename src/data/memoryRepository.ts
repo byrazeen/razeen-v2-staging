@@ -12,7 +12,7 @@ import type {
 } from "@/config/customOrderContract";
 import { customOils, products } from "@/data/mock";
 import { isProductionEligible, type Order, type OrderLine, type RazeenRepository } from "@/data/repositoryContract";
-import { totals as pricingTotals } from "@/lib/pricing";
+import { dirhamsToFils, totals as pricingTotals } from "@/lib/pricing";
 import seed from "../../seed/seed.json";
 
 const LATENCY_MS = 140;
@@ -49,7 +49,7 @@ function seedOrders(): Order[] {
       id: `ready:${it.handle}`,
       kind: "ready",
       title: products.find((p) => p.handle === it.handle)?.title ?? it.handle,
-      unitPriceFils: Math.round(it.unit_price * 100),
+      unitPriceFils: dirhamsToFils(it.unit_price),
       quantity: it.qty,
     }));
     // نفس الحساب المعتمد — بيانات البذرة لا تُستثنى من السياسة.
@@ -82,7 +82,7 @@ function seedOrders(): Order[] {
       kind: "custom",
       title: `${o.perfume_brand} — ${o.perfume_name}`,
       subtitle: `${o.bottle_size}${o.customer_notes ? ` · ${o.customer_notes}` : ""}`,
-      unitPriceFils: Math.round(o.unit_price * 100),
+      unitPriceFils: dirhamsToFils(o.unit_price),
       quantity: o.quantity,
       perfumeCode: o.perfume_code,
       size: o.bottle_size,

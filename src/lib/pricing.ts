@@ -142,6 +142,17 @@ export function totals(lines: readonly Priceable[]): Totals {
   };
 }
 
+/**
+ * تحويل مبلغ بالدرهم إلى فلس صحيح.
+ *
+ * مكانه هنا لا في طبقة البيانات: البذرة تُخزَّن بالدرهم، والتحويل عملية على
+ * المال — فلو تُرك متناثراً لصار كل موضع فرصةً لتقريب مختلف. وهذا ما أمسكه
+ * فحص المصدر فعلاً حين وُسِّع ليشمل `src` كاملاً.
+ */
+export function dirhamsToFils(amountDirhams: number): number {
+  return Math.round(amountDirhams * FILS_PER_AED);
+}
+
 /** صياغة العرض — من الفلس الصحيح مباشرة، بلا قسمة عشرية. */
 export function formatFils(amountFils: number): string {
   const sign = amountFils < 0 ? "−" : "";
