@@ -1,14 +1,16 @@
 # معاينة staging على GitHub Pages.
 #
-# تُبنى من `main` وتُقدَّم شيفرة هذا المستودع نفسها — لا نسخة موازية. الغرض أن
-# تكون هناك واجهة قابلة للفتح والحكم عليها قبل أن يوجد استضافة نهائية.
+# تُبنى من `main` وتُقدَّم شيفرة هذا المستودع نفسها — لا نسخة موازية.
+#
+# لماذا النشر إلى فرع `gh-pages` لا عبر `deploy-pages`:
+# رمز الـActions لا يملك صلاحية إنشاء موقع Pages ("Resource not accessible by
+# integration")، فمسار `configure-pages` بـ`enablement: true` فشل. أما الدفع إلى
+# فرع `gh-pages` فيُفعّل الموقع تلقائياً ولا يحتاج إلا صلاحية الكتابة على
+# المحتوى — وهي متاحة. النتيجة واحدة والطريق أقصر.
 #
 # القيم أدناه ليست أسراراً: `VITE_SUPABASE_PUBLISHABLE_KEY` مفتاح منشور بحكم
 # تصميمه ويُشحن داخل حزمة المتصفح في أي حال، وRLS هي الحماية لا كتمانه. ولا
 # يوجد هنا service_role ولا مفتاح دفع ولا أي سرّ.
-#
-# ولأن هذه بيئة تجريبية: `public/robots.txt` يمنع الفهرسة، وكل المحوّلات
-# الخارجية معطّلة أو وهمية، والبيانات صناعية بالكامل.
 name: Preview
 
 on:
@@ -17,9 +19,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 # نشرة واحدة في كل مرة؛ الأحدث يفوز ولا يُلغى وهو في منتصف النشر.
 concurrency:
@@ -27,8 +27,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: بناء المعاينة
+  deploy:
+    name: بناء المعاينة ونشرها
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,17 +38,10 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # enablement: true يفعّل Pages من داخل الـrunner — واجهة الإعدادات
-      # ليست مطلوبة، والمستودع عام فالخدمة متاحة بلا تكلفة.
-      - name: تفعيل Pages
-        id: pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - name: بناء
         env:
-          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # الموقع يُقدَّم من ‎/<repo>/‎ لا من الجذر.
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_APP_ENV: staging
           VITE_SUPABASE_URL: https://imejhwkgvvhojllkchmg.supabase.co
           VITE_SUPABASE_PROJECT_ID: imejhwkgvvhojllkchmg
@@ -60,23 +53,24 @@ jobs:
           VITE_ANALYTICS_MODE: disabled
         run: npm run build
 
-      # تطبيق صفحة واحدة على استضافة ساكنة: أي مسار عميق يصل كـ404، فتُقدَّم
-      # نسخة من index.html ويتولى الموجّه الباقي. بدونها ‎/admin‎ و‎/outbox‎
-      # تفتحان صفحة خطأ عند التحديث المباشر.
-      - name: صفحة رجوع للمسارات العميقة
-        run: cp dist/index.html dist/404.html
+      - name: تهيئة المخرجات للاستضافة الساكنة
+        run: |
+          # تطبيق صفحة واحدة: أي مسار عميق يصل كـ404، فتُقدَّم نسخة من
+          # index.html ويتولى الموجّه الباقي. بدونها ‎/admin‎ و‎/outbox‎ تفتحان
+          # صفحة خطأ عند التحديث المباشر.
+          cp dist/index.html dist/404.html
+          # يمنع Jekyll من ابتلاع الملفات التي تبدأ بشرطة سفلية.
+          touch dist/.nojekyll
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    name: نشر المعاينة
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: نشر إلى gh-pages
+        run: |
+          set -e
+          cd dist
+          git init -q
+          git checkout -qb gh-pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "معاينة staging من ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" gh-pages
+          echo "المعاينة: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
