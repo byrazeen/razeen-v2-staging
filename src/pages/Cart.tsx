@@ -14,8 +14,14 @@ export default function Cart() {
   const cart = useCart();
   const navigate = useNavigate();
   if (cart.lines.length === 0) {
-    return <Empty title="سلتك فاضية" hint="ابدأ من البحث أو العطور الجاهزة." headingLevel={1}
-      action={<Link className="btn" to="/" style={{ maxWidth: 240, margin: "14px auto 0" }}>ابدأ التسوّق</Link>} />;
+    // الطرق الثلاث كلها: العطر المخصص كان غائباً عن هذه الشاشة وحده.
+    return <Empty title="سلتك فاضية" hint="ابدأ من الرفّ، أو ابحث باسم العطر، أو صمّم عطرك الخاص." headingLevel={1}
+      action={
+        <div className="grid two" style={{ maxWidth: 380, margin: "16px auto 0" }}>
+          <Link className="btn" to="/ready">تصفّح الرفّ</Link>
+          <Link className="btn ghost" to="/custom">صمّم عطرك</Link>
+        </div>
+      } />;
   }
   const totals = cart.totals;
   const money = formatFils;
@@ -65,10 +71,13 @@ export default function Cart() {
           <span>الإجمالي</span><strong className="price price-lg" data-testid="cart-total">{money(totals.totalFils)}</strong>
         </div>
         {!totals.bulkApplied && totals.itemCount > 0 && (
-          <p className="tiny muted" style={{ margin: "10px 0 0" }}>
-            {/* «أضف 2 عطر» خطأ نحوي — المطابقة من مساعد واحد بدل حالة مكتوبة بخط اليد. */}
-            أضف {arabicCount(BULK_THRESHOLD_ITEMS - totals.itemCount, PERFUME_FORMS)} ويصير الشحن مجاني مع خصم {BULK_DISCOUNT_PERCENT}%.
-          </p>
+          // «أضف 2 عطر» خطأ نحوي — والمطابقة من مساعد واحد. والقاعدة صارت
+          // قابلة للتنفيذ من مكانها: رابط يعيده إلى الرفّ بدل نصّ رمادي.
+          <Link className="offer-link" to="/ready">
+            <span>أضف {arabicCount(BULK_THRESHOLD_ITEMS - totals.itemCount, PERFUME_FORMS)} ويصير الشحن مجاني مع خصم {BULK_DISCOUNT_PERCENT}%.</span>
+            <span className="go" aria-hidden="true">الرفّ ←</span>
+            <span className="sr-only">تصفّح الرفّ</span>
+          </Link>
         )}
       </div>
 

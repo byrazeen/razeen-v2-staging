@@ -6,7 +6,15 @@
  *   • "لم أجد عطري" is a first-class path, not a dead end that pushes the
  *     customer into WhatsApp and out of the system;
  *   • size is chosen, not hardcoded to 100ml.
- * The number itself is a placeholder and is labelled as one everywhere.
+ *
+ * وعيبان كانا باقيين:
+ *   • الصفحة كانت تفتح على حقل نصّ وحيد و«اكتب حرفين وتظهر الاقتراحات». من يريد
+ *     عطراً مخصصاً ولا يحفظ اسم زيت لا يملك خطوة تالية، وعند 1440 بكسل كان
+ *     الحقل يطفو وحده في نحو 500 بكسل من بطاقة فارغة. الحالة الافتراضية الآن
+ *     شبكة الزيوت الفعلية من الكتالوج، والبحث يبقى فوقها لمن يعرف اسمه.
+ *   • أزرار المقاس كانت «50ml» و«100ml» بلا سعر، والسعر الوحيد أسفل الطيّة:
+ *     يختار العميل ثم يعرف كم يكلّف. السعر صار على الزرّ نفسه — مقروءاً من وحدة
+ *     التسعير كما هو، بلا حساب هنا.
  */
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -38,8 +46,9 @@ export default function CustomPerfume() {
   const [notes, setNotes] = useState("");
 
   const oils = state.data ?? [];
-  const suggestions = useMemo(() => {
-    if (!q.trim()) return [];
+  /** بلا بحث: الكتالوج كله معروضاً. مع بحث: ما يطابقه. لا شاشة فارغة أبداً. */
+  const shown = useMemo(() => {
+    if (!q.trim()) return oils;
     return search(q, oils.map((o) => ({ ...o, ...asSearchable(o) })), 8) as unknown as CustomOil[];
   }, [q, oils]);
 
@@ -61,45 +70,46 @@ export default function CustomPerfume() {
       {/* الشريط مخفي عن القارئ ولم يكن له مقابل نصّي — /discover كان يفعلها وحده. */}
       <p className="tiny muted">الخطوة {step} من 2</p>
 
-      <label htmlFor="oil" className="small muted" style={{ marginTop: 14 }}>اكتب اسم العطر أو البراند</label>
+      <label htmlFor="oil" className="small muted" style={{ marginTop: 14 }}>ابحث في الزيوت — أو اختر من الشبكة</label>
       <input id="oil" className="field" value={q} placeholder="مثال: MIDNIGHT FIG أو BRAND ALPHA"
         onChange={(e) => { setQ(e.target.value); setPicked(null); }} style={{ marginTop: 6 }} />
 
       <Async state={state} loadingLabel="جاري تحميل قائمة الزيوت…">
         {() => (
           <>
-            {!q.trim() && !picked && (
-              <p className="tiny muted" style={{ marginTop: 10 }}>
-                اكتب حرفين وتظهر الاقتراحات. ما لقيت عطرك؟ نسجّله كطلب خاص.
-              </p>
-            )}
-
-            {q.trim() && !picked && !unlisted && (
-              <div className="grid" style={{ marginTop: 10 }} data-testid="suggestions">
-                {suggestions.map((o) => (
-                  <button key={o.code} className="card row" style={{ gap: 12 }}
-                    onClick={() => { setPicked(o); setUnlisted(false); setFreeText(""); }}>
-                    <Media size="thumb" label={o.name} />
-                    <span style={{ minWidth: 0 }}>
-                      <strong style={{ display: "block" }}>{o.name}</strong>
-                      <span className="tiny muted"><Iso>{o.brand}</Iso> · <Iso className="num">{o.code}</Iso></span>
-                    </span>
+            {!picked && !unlisted && (
+              <>
+                <h2 className="eyebrow">{q.trim() ? "نتائج البحث" : "الزيوت المتاحة"}</h2>
+                <div className="oil-grid" data-testid="suggestions">
+                  {shown.map((o) => (
+                    <button key={o.code} className="oil-card"
+                      onClick={() => { setPicked(o); setUnlisted(false); setFreeText(""); }}>
+                      <Media label={o.name} />
+                      <span className="oil-name">{o.name}</span>
+                      <span className="oil-sub"><Iso>{o.brand}</Iso></span>
+                      <span className="oil-sub"><Iso className="num">{o.code}</Iso></span>
+                    </button>
+                  ))}
+                  {/* لا طريق مسدود: العطر غير الموجود يُسجَّل كطلب بدل خروج العميل */}
+                  <button className="oil-card oil-alt" onClick={() => { setUnlisted(true); setFreeText(q); }}>
+                    <span className="oil-plate" aria-hidden="true">+</span>
+                    <span className="oil-name">لم أجد عطري</span>
+                    <span className="oil-sub">نسجّله كطلب خاص</span>
                   </button>
-                ))}
-                {suggestions.length === 0 && <p className="tiny muted">ما في اقتراح مطابق.</p>}
-
-                {/* لا طريق مسدود: العطر غير الموجود يُسجَّل كطلب بدل خروج العميل */}
-                <button className="btn ghost" onClick={() => { setUnlisted(true); setFreeText(q); }}>لم أجد عطري</button>
-              </div>
+                </div>
+                {q.trim() && shown.length === 0 && (
+                  <p className="tiny muted" style={{ marginTop: 10 }}>ما في زيت مطابق لبحثك — سجّله كطلب خاص.</p>
+                )}
+              </>
             )}
 
             {unlisted && !picked && (
-              <div className="card" style={{ marginTop: 10 }}>
+              <div className="card" style={{ marginTop: 14 }}>
                 <strong className="small">اكتب عطرك بنفسك</strong>
                 <p className="tiny muted" style={{ margin: "4px 0 8px" }}>نسجّله كطلب خاص ونرجع لك بالتوفر والسعر.</p>
                 <input className="field" value={freeText} onChange={(e) => setFreeText(e.target.value)}
                   placeholder="اسم العطر والبراند كما تعرفه" />
-                <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => { setUnlisted(false); setFreeText(""); }}>رجوع للاقتراحات</button>
+                <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => { setUnlisted(false); setFreeText(""); }}>رجوع للزيوت</button>
               </div>
             )}
 
@@ -107,25 +117,32 @@ export default function CustomPerfume() {
               <>
                 <div className="card row" style={{ marginTop: 14, gap: 14 }}>
                   <Media size="thumb" label={requestedName} />
-                  <span style={{ minWidth: 0 }}>
+                  <span style={{ minWidth: 0, flex: 1 }}>
                     <strong style={{ display: "block" }}>{requestedName}</strong>
                     {picked
                       ? <span className="tiny muted">كود الزيت: <Iso className="num">{picked.code}</Iso></span>
                       : <span className="tiny muted">طلب خاص — يحتاج تأكيد التوفر</span>}
                   </span>
+                  {picked && (
+                    <button className="icon-btn" onClick={() => { setPicked(null); }}>غيّر</button>
+                  )}
                 </div>
 
                 <h2 className="eyebrow" id="size-label">الحجم</h2>
-                {/* الاختيار كان لوناً فقط: «50ml، زر» سواء اختير أم لا. */}
-                <div className="grid two" role="radiogroup" aria-labelledby="size-label">
+                {/* الاختيار كان لوناً فقط: «50ml، زر» سواء اختير أم لا. والسعر كان غائباً
+                    عن الأزرار كلها: يُقرأ الآن من وحدة التسعير ويُعرض على الزرّ نفسه. */}
+                <div className="sizes" role="radiogroup" aria-labelledby="size-label">
                   {BOTTLE_SIZES.map((s) => {
-                    const available = customPriceFils(s) !== null;
+                    const priceFils = customPriceFils(s);
+                    const available = priceFils !== null;
                     return (
                       <button key={s} role="radio" aria-checked={size === s}
                         className={`btn ${size === s ? "sel" : "ghost"}`} disabled={!available}
-                        title={available ? undefined : UNAVAILABLE_LABEL}
                         onClick={() => setSize(s)}>
-                        <Iso className="num">{s}</Iso>{available ? "" : ` — ${UNAVAILABLE_LABEL}`}
+                        <Iso className="num">{s}</Iso>
+                        <span className="size-price">
+                          {available ? formatFils(priceFils) : UNAVAILABLE_LABEL}
+                        </span>
                       </button>
                     );
                   })}
@@ -139,7 +156,7 @@ export default function CustomPerfume() {
                 </div>
 
                 <h2 className="eyebrow">ملاحظات (اختياري)</h2>
-                <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أي تفصيل يهمك" />
+                <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أي تفصيل يهمك" aria-label="ملاحظات على الطلب" />
 
                 <div className="panel" style={{ marginTop: 18 }}>
                   <div className="sum total" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>

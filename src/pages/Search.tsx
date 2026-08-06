@@ -7,7 +7,7 @@ import { search } from "@/lib/search";
 import { readyMadePriceFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
 import { arabicCount, RESULT_FORMS } from "@/lib/arabic";
-import { ProductRow } from "@/components/ProductRow";
+import { ProductCard } from "@/components/ProductCard";
 
 export default function Search() {
   const [params, setParams] = useSearchParams();
@@ -48,12 +48,14 @@ export default function Search() {
                 <h2 className="eyebrow" style={{ marginTop: 0 }} role="status" aria-live="polite" aria-atomic="true">
                   <span className="num">{arabicCount(results.length, RESULT_FORMS)}</span>
                 </h2>
-                <div className="grid list-2">
+                <div className="shelf">
                 {results.map((p) => (
-                  <ProductRow
+                  <ProductCard
                     key={p.handle} handle={p.handle} title={p.title}
                     priceFils={readyMadePriceFils(p.priceFils)}
-                    note={p.is_available ? `متوفر — ${p.quantity} قطعة` : UNAVAILABLE_LABEL}
+                    family={p.family} intensity={p.intensity}
+                    dimmed={!p.is_available}
+                    state={p.is_available ? `متوفر — ${p.quantity} قطعة` : UNAVAILABLE_LABEL}
                   />
                 ))}
                 </div>

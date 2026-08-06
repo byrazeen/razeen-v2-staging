@@ -8,6 +8,11 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Flacon } from "@/components/Media";
+import { ProductCard } from "@/components/ProductCard";
+import { Async } from "@/components/states";
+import { repository } from "@/data/repository";
+import { useAsync } from "@/lib/useAsync";
+import { readyMadePriceFils } from "@/lib/pricing";
 
 const DOORS = [
   { to: "/search",  title: "أعرف اسم العطر", hint: "ابحث باسم العطر أو البراند", lead: true },
@@ -26,14 +31,19 @@ const STAGING_DOORS = [
 export default function Home() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
+  /** نفس المفتاح المحفوظ الذي يقرأه الرفّ — لا طلب إضافي عند الانتقال إليه. */
+  const shelf = useAsync(() => repository.listProducts(), [], { cacheKey: "products" });
 
   return (
     <>
       <section className="hero">
-        {/* كلمة استهلال فوق العنوان — تبقى فقرة كي لا يسبق <h2> الـ<h1>. */}
-        <p className="eyebrow">دار عطور · الإمارات</p>
-        <h1>عطرك، كما تعرفه أو كما تتخيّله</h1>
-        <p>جاهز من الرف، أو مركَّب لك بالحجم الذي تختاره. التوصيل داخل الإمارات.</p>
+        <div className="hero-copy">
+          {/* كلمة استهلال فوق العنوان — تبقى فقرة كي لا يسبق <h2> الـ<h1>. */}
+          <p className="eyebrow">دار عطور · الإمارات</p>
+          <h1>عطرك، كما تعرفه أو كما تتخيّله</h1>
+          <p>جاهز من الرف، أو مركَّب لك بالحجم الذي تختاره. التوصيل داخل الإمارات.</p>
+        </div>
+        {/* القارورة في عمودها: كانت تمرّ خلف العنوان وتحت اللِّيد عند 1440 بكسل. */}
         <Flacon className="hero-flacon" />
         <span className="hero-thread" aria-hidden="true" />
       </section>
@@ -46,6 +56,31 @@ export default function Home() {
           style={{ marginTop: 6 }}
         />
       </form>
+
+      {/*
+        الرئيسية كانت عنواناً وخمسة أبواب: لا عطر، ولا سعر، ولا توفر. زائر أول
+        مرة لا يرى أن هنا شيئاً يُباع إلا بعد نقرة. ثلاثة من الرفّ، بأسعارها.
+      */}
+      <div className="row" style={{ marginTop: 26, marginBottom: 10 }}>
+        <h2 className="eyebrow" style={{ margin: 0, flex: 1 }}>على الرف الآن</h2>
+        <Link to="/ready" className="crumb">كل العطور</Link>
+      </div>
+      <Async state={shelf} isEmpty={(list) => list.length === 0} empty={<></>}>
+        {(list) => (
+          <div className="shelf strip">
+            {list.filter((p) => p.is_available && readyMadePriceFils(p.priceFils) !== null)
+              .slice(0, 3)
+              .map((p) => (
+                <ProductCard
+                  key={p.handle} handle={p.handle} title={p.title}
+                  priceFils={readyMadePriceFils(p.priceFils)}
+                  family={p.family} intensity={p.intensity}
+                  state={`متوفر — ${p.quantity} قطعة`}
+                />
+              ))}
+          </div>
+        )}
+      </Async>
 
       <h2 className="eyebrow">وش تبي اليوم؟</h2>
       <div className="grid doors">
