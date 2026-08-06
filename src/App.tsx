@@ -18,7 +18,9 @@ import Outbox from "@/pages/Outbox";
 export default function App() {
   return (
     <CartProvider>
-      <BrowserRouter>
+      {/* المعاينة تُقدَّم من مسار فرعي (‎/razeen-v2-staging/‎) على GitHub Pages،
+          ومن الجذر محلياً. Vite يحقن المسار وقت البناء، فيعمل الاثنان بلا فرع. */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AppShell>
           <Routes>
             <Route path="/" element={<Home />} />
