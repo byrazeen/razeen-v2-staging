@@ -109,6 +109,7 @@ async function main() {
   await client.query(sql("supabase/migrations/0001_baseline.sql"));
   await client.query(sql("supabase/migrations/0002_rls.sql"));
   await client.query(sql("supabase/migrations/0003_audit.sql"));
+  await client.query(sql("supabase/migrations/0004_harden_audit.sql"));
   await client.query(sql("supabase/seed/staging_seed.sql"));
 
   // مَنفذ للطفرة: يسمح لـrls-mutation-proof.mjs بإضعاف سياسة واحدة بعد تطبيق
@@ -285,6 +286,21 @@ async function main() {
   });
 
   // --- 8 -------------------------------------------------------------------
+  // كُتبت بعد أن نجح التزوير فعلاً على مشروع Supabase حقيقي: `audit_logs` بلا
+  // سياسة إدراج، لكن الدالة التي تكتب فيه SECURITY DEFINER وكانت صلاحية
+  // تنفيذها مفتوحة، وPostgREST يكشف كل دالة في public كنقطة RPC. فالباب لم يكن
+  // الجدول بل الدالة.
+  console.log("\n— ٧-ب) العميل لا يزوّر سجل تدقيق عبر استدعاء الدالة —");
+  await as("authenticated", SALEM_UID, async () => {
+    const before = Number((await rows("select count(*)::int as n from public.audit_logs"))[0]?.n ?? 0);
+    const forged = await probe(
+      `select public.write_audit_log('update', 'orders', null, '{}'::jsonb, '{"forged":true}'::jsonb)`
+    );
+    check("استدعاء write_audit_log مرفوض", forged.threw);
+    const after = Number((await rows("select count(*)::int as n from public.audit_logs"))[0]?.n ?? 0);
+    check("ولا صف جديد في السجل", after === before);
+  });
+
   console.log("\n— ٨) تعديل المدير يُكتب في سجل التدقيق —");
   await as("authenticated", ADMIN_UID, async () => {
     const before = Number((await rows(
