@@ -6,6 +6,9 @@
 import { Link } from "react-router-dom";
 import { repository, type Order } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
+
+/** رسالة العميل حين تفشل قراءة الطلبات — عربية، بلا نصّ استثناء. */
+const ORDERS_ERROR = "تعذّر تحميل الطلبات. تأكد من اتصالك وحاول مرة ثانية.";
 import { formatFils } from "@/lib/pricing";
 import { downloadCsv, ordersToCsv } from "@/lib/csv";
 import { AdminGate } from "@/components/AdminGate";
@@ -15,7 +18,7 @@ import { paymentLabel, productionLabel, shippingLabel } from "@/lib/statusLabels
 import { arabicCount, ORDER_FORMS } from "@/lib/arabic";
 
 export default function Admin() {
-  const state = useAsync(() => repository.listOrders(), []);
+  const state = useAsync(() => repository.listOrders(), [], { errorMessage: ORDERS_ERROR });
 
   return (
     <AdminGate>

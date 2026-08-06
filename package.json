@@ -11,15 +11,16 @@
     "test:mutation": "node tests/build-guard.mjs && node tests/mutation-proof.mjs",
     "test:pricing": "node tests/pricing.test.mjs",
     "test:rtl": "node tests/rtl-a11y.test.mjs",
-    "test": "npm run test:pricing && npm run test:rtl && npm run test:guard && npm run test:mutation && npm run test:injection && npm run test:env && npm run test:secrets",
+    "test": "npm run test:pricing && npm run test:rtl && npm run test:uxperf && npm run test:guard && npm run test:mutation && npm run test:injection && npm run test:env && npm run test:secrets",
     "test:injection": "node tests/build-guard.mjs && node tests/injection-proof.mjs",
     "test:env": "node tests/staging-env.test.mjs",
     "test:secrets": "node tests/secret-scan.mjs && node tests/prod-reference-scan.mjs",
     "test:rls": "node tests/rls.test.mjs",
-    "test:rls:mutation": "node tests/rls-mutation-proof.mjs"
+    "test:rls:mutation": "node tests/rls-mutation-proof.mjs",
+    "test:uxperf": "node tests/ux-perf.test.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.112.1",
+    "@supabase/postgrest-js": "^2.112.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1"

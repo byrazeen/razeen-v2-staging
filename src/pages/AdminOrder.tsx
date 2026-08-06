@@ -7,6 +7,9 @@ import { Link, useParams } from "react-router-dom";
 import { repository, isProductionEligible, type Order } from "@/data/repository";
 import type { ProductionStatus, ShippingStatus } from "@/config/customOrderContract";
 import { useAsync } from "@/lib/useAsync";
+
+/** رسالة العميل حين تفشل قراءة الطلبات — عربية، بلا نصّ استثناء. */
+const ORDERS_ERROR = "تعذّر تحميل الطلبات. تأكد من اتصالك وحاول مرة ثانية.";
 import { formatFils, lineTotalFils, BULK_DISCOUNT_PERCENT } from "@/lib/pricing";
 import { notifyShipment } from "@/lib/orderFlow";
 import { AdminGate } from "@/components/AdminGate";
@@ -19,7 +22,7 @@ const SHIPPING: ShippingStatus[] = ["not_shipped", "handed_over", "in_transit", 
 
 export default function AdminOrder() {
   const { orderNumber } = useParams();
-  const state = useAsync(() => repository.getOrder(orderNumber ?? ""), [orderNumber]);
+  const state = useAsync(() => repository.getOrder(orderNumber ?? ""), [orderNumber], { errorMessage: ORDERS_ERROR });
   const [order, setOrder] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
   const current = order ?? state.data;

@@ -26,7 +26,7 @@ export default function CustomPerfume() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const cart = useCart();
-  const state = useAsync(() => repository.listOils(), []);
+  const state = useAsync(() => repository.listOils(), [], { cacheKey: "oils" });
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [picked, setPicked] = useState<CustomOil | null>(null);

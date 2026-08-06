@@ -5,13 +5,16 @@
 import { Link } from "react-router-dom";
 import { repository, type Order } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
+
+/** رسالة العميل حين تفشل قراءة الطلبات — عربية، بلا نصّ استثناء. */
+const ORDERS_ERROR = "تعذّر تحميل الطلبات. تأكد من اتصالك وحاول مرة ثانية.";
 import { formatFils } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
 import { OrderNumber } from "@/components/text";
 import { paymentLabel, productionLabel, shippingLabel } from "@/lib/statusLabels";
 
 export default function Account() {
-  const state = useAsync(() => repository.listOrders(), []);
+  const state = useAsync(() => repository.listOrders(), [], { errorMessage: ORDERS_ERROR });
 
   return (
     <>

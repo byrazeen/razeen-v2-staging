@@ -12,7 +12,7 @@ import { ProductRow } from "@/components/ProductRow";
 export default function Search() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
-  const state = useAsync(() => repository.listProducts(), []);
+  const state = useAsync(() => repository.listProducts(), [], { cacheKey: "products" });
   const catalogue = state.data ?? [];
   // البحث يطابق العربي بعد التطبيع، ويقبل جزءاً من الاسم.
   const results = useMemo(() => (q.trim() ? search(q, catalogue) : []), [q, catalogue]);

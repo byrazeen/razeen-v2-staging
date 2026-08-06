@@ -5,9 +5,14 @@
  * each say WHY they were picked. Only available stock is ever recommended:
  * recommending something that cannot be bought is worse than recommending
  * nothing.
+ *
+ * الإجابات تعيش في رابط الصفحة لا في حالة المكوّن. الرجوع بزرّ المتصفّح كان
+ * يمسح الاستبيان كله ويعيدك إلى «سؤال 1 من 3»: من أراد مقارنة الترشيحات
+ * الأخرى كان عليه إعادة الاستبيان من أوّله. ومع الرابط صارت النتيجة قابلة
+ * للمشاركة كما هي، وصار «السؤال السابق» ممكناً بلا حالة إضافية.
  */
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/lib/cart";
@@ -26,11 +31,39 @@ const QUESTIONS = [
     { value: "250", label: "أقل من 250" }, { value: "320", label: "250–320" }, { value: "9999", label: "ما يهم" }] },
 ] as const;
 
+/** الخطوة كما هي في الرابط، محصورة في المدى الصالح. */
+function readStep(params: URLSearchParams): number {
+  const raw = Number(params.get("q"));
+  if (!Number.isFinite(raw)) return 0;
+  return Math.min(Math.max(Math.trunc(raw), 0), QUESTIONS.length);
+}
+
 export default function Discover() {
-  const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [params, setParams] = useSearchParams();
+  const step = readStep(params);
+  const answers = useMemo(() => {
+    const found: Record<string, string> = {};
+    for (const q of QUESTIONS) {
+      const value = params.get(q.key);
+      if (value) found[q.key] = value;
+    }
+    return found;
+  }, [params]);
   const done = step >= QUESTIONS.length;
-  const state = useAsync(() => repository.listProducts(), []);
+
+  /** كل انتقال دفعةٌ في تاريخ المتصفّح — وهذا بالضبط ما يجعل «رجوع» يعمل. */
+  const goto = (nextStep: number, patch: Record<string, string | null> = {}) => {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === null) next.delete(key); else next.set(key, value);
+    }
+    if (nextStep === 0 && Object.keys(patch).length === 0) {
+      for (const q of QUESTIONS) next.delete(q.key);
+    }
+    next.set("q", String(nextStep));
+    setParams(next);
+  };
+  const state = useAsync(() => repository.listProducts(), [], { cacheKey: "products" });
   const navigate = useNavigate();
   const cart = useCart();
 
@@ -64,12 +97,17 @@ export default function Discover() {
         <div className="grid two">
           {q.options.map((o) => (
             <button key={o.value} className="btn ghost"
-              onClick={() => { setAnswers((a) => ({ ...a, [q.key]: o.value })); setStep((s) => s + 1); }}>
+              onClick={() => goto(step + 1, { [q.key]: o.value })}>
               {o.label}
             </button>
           ))}
         </div>
-        <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => setStep((s) => s + 1)}>تخطَّ هذا السؤال</button>
+        <div className="grid two" style={{ marginTop: 12 }}>
+          <button className="btn ghost" onClick={() => goto(step + 1, { [q.key]: null })}>تخطَّ هذا السؤال</button>
+          {/* «السؤال السابق» لم يكن موجوداً أصلاً: خطأ في الإجابة كان يعني إعادة الاستبيان. */}
+          <button className="btn ghost" disabled={step === 0}
+            onClick={() => goto(step - 1, { [QUESTIONS[Math.max(step - 1, 0)].key]: null })}>السؤال السابق</button>
+        </div>
       </>
     );
   }
@@ -112,7 +150,10 @@ export default function Discover() {
           )
         }
       </Async>
-      <button className="btn ghost" style={{ marginTop: 18 }} onClick={() => { setStep(0); setAnswers({}); }}>ابدأ من جديد</button>
+      <div className="grid two" style={{ marginTop: 18 }}>
+        <button className="btn ghost" onClick={() => goto(QUESTIONS.length - 1, { [QUESTIONS[QUESTIONS.length - 1].key]: null })}>عدّل آخر إجابة</button>
+        <button className="btn ghost" onClick={() => goto(0)}>ابدأ من جديد</button>
+      </div>
     </>
   );
 }

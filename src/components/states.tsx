@@ -1,6 +1,6 @@
 /** Loading, empty and error, written once so no screen invents its own. */
 import type { ReactNode } from "react";
-import type { AsyncState } from "@/lib/useAsync";
+import { READ_ERROR_MESSAGE, type AsyncState } from "@/lib/useAsync";
 
 export function Loading({ label = "جاري التحميل…" }: { label?: string }) {
   return (
@@ -26,7 +26,15 @@ export function Empty({ title, hint, action, headingLevel = 1 }: { title: string
   );
 }
 
-export function ErrorState({ title = "صار خطأ", hint, onRetry, headingLevel = 2 }: { title?: string; hint?: string; onRetry?: () => void; headingLevel?: 1 | 2 }) {
+/**
+ * حالة الخطأ كما يراها عميل، لا كما يراها مصحِّح أخطاء.
+ *
+ * `hint` نصٌّ مكتوب للعميل بالعربية — لا `error.message` ولا نصّ استثناء.
+ * كانت الشاشة تعرض حرفياً «Supabase products: TypeError: Failed to fetch»:
+ * إنجليزية داخل متجر عربي، وتكشف المزوّد واسم الجدول، وتقرأ كأن الموقع
+ * معطوب. التفصيل التقني صار في `console.error` داخل `useAsync` وحده.
+ */
+export function ErrorState({ title = "صار خطأ", hint = READ_ERROR_MESSAGE, onRetry, headingLevel = 2 }: { title?: string; hint?: string; onRetry?: () => void; headingLevel?: 1 | 2 }) {
   const H = (headingLevel === 1 ? "h1" : "h2") as "h1" | "h2";
   return (
     <div className="state" role="alert">
@@ -51,6 +59,7 @@ export function Async<T>({
   loadingLabel?: string;
 }) {
   if (state.loading) return <Loading label={loadingLabel} />;
+  // `state.error` نصّ عميل جاهز من useAsync — لا استثناء خام يمرّ من هنا.
   if (state.error) return <ErrorState hint={state.error} onRetry={state.reload} />;
   // null = لا يوجد سجل: تُعامَل كحالة فراغ، فالصفحة لا ترى قيمة فارغة أبداً.
   if (state.data === null || state.data === undefined) return <>{empty ?? <Empty title="لا توجد بيانات" />}</>;

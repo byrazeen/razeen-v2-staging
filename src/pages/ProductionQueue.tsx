@@ -8,6 +8,9 @@
 import { Link } from "react-router-dom";
 import { repository, isProductionEligible, type Order } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
+
+/** رسالة العميل حين تفشل قراءة الطلبات — عربية، بلا نصّ استثناء. */
+const ORDERS_ERROR = "تعذّر تحميل الطلبات. تأكد من اتصالك وحاول مرة ثانية.";
 import { formatFils } from "@/lib/pricing";
 import { AdminGate } from "@/components/AdminGate";
 import { Async, Empty } from "@/components/states";
@@ -15,7 +18,7 @@ import { Iso, OrderNumber } from "@/components/text";
 import { productionLabel, shippingLabel } from "@/lib/statusLabels";
 
 export default function ProductionQueue() {
-  const state = useAsync(() => repository.listProductionQueue(), []);
+  const state = useAsync(() => repository.listProductionQueue(), [], { errorMessage: ORDERS_ERROR });
 
   return (
     <AdminGate>

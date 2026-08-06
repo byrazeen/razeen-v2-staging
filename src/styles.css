@@ -378,6 +378,22 @@ label { display: block; }
 /* النماذج لا تُمَدّ عبر الشاشة: عمود قراءة واحد مهما اتّسعت النافذة. */
 .form { max-width: 620px; }
 
+/*
+ * جسم النموذج يترك تحته فراغاً بارتفاع الشريط اللاصق.
+ *
+ * قِيس على 390px: عند التمرير إلى «الشارع» كان `document.elementFromPoint`
+ * فوق «المبنى» و«الشقة» يعيد زرّ الدفع لا الحقل — حقلان إلزاميان خلف الزرّ.
+ * الحشو هنا لا في `.form` نفسه، وإلا لبقي أسفل الشريط لأنه آخر أبنائه.
+ * و`scroll-margin` يضمن أن أي حقل يُمرَّر إليه يقف فوق الشريط لا تحته.
+ */
+:root { --actionbar-h: calc(var(--tap) + 26px); }
+.form-body { padding-bottom: calc(var(--actionbar-h) + env(safe-area-inset-bottom)); }
+.form-body .field { scroll-margin-bottom: calc(var(--actionbar-h) + 16px); }
+@media (min-width: 720px) {
+  /* الشريط يعود إلى مجرى الصفحة على الشاشات الواسعة، فلا شيء يغطّي شيئاً. */
+  .form-body { padding-bottom: 0; }
+}
+
 /* شريط الإجراء السفلي — الشراء في متناول الإبهام على الجوال. */
 .actionbar {
   position: sticky; bottom: 0; z-index: 15;
