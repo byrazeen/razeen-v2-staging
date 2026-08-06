@@ -8,13 +8,13 @@
  * MOCK SIGN-IN ONLY — NOT AUTHENTICATION. Never ship this gate anywhere real.
  */
 import { useState, type ReactNode } from "react";
+import { ADMIN_GATE_KEY, isAdminSignedIn } from "@/lib/adminMode";
 
-const KEY = "razeen_v2_staging_admin";
+const KEY = ADMIN_GATE_KEY;
 /** كلمة المرور معلنة على الشاشة نفسها — لأنها ليست سرّاً ولا تحمي شيئاً. */
 const STAGING_CODE = "staging";
 
-export const isAdminSignedIn = () =>
-  typeof window !== "undefined" && window.sessionStorage.getItem(KEY) === "1";
+export { isAdminSignedIn };
 
 export function AdminGate({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(isAdminSignedIn());

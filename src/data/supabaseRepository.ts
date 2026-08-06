@@ -9,21 +9,34 @@
  *     orders, order_items, production_queue, shipments, staging_outbox) ممنوع
  *     على anon: لا منحة ولا سياسة. يحتاج جلسة مُوثَّقة، ومعظمه يحتاج admin.
  *
- * ولذلك صار مسار الطلب كله خلف **جلسة مجهولة دائمة** (`@/lib/anonSession`):
- * سلة، وبنود سلة، وطلبات، وبنود طلب، وطلبات عطر مخصص، ودفعة وهمية — كلها في
- * القاعدة تحت `auth.uid()`. لا شيء منها في `localStorage`، ولا سطر في هذا
- * الملف يقرأ منه أو يكتب فيه.
+ * ولذلك صار مسار المتسوّق كله خلف **جلسة ضيف** (`@/lib/guestSession`): سلة،
+ * وبنود سلة، وطلبات، وبنود طلب، وطلبات عطر مخصّص، ودفعة وهمية — كلها في
+ * القاعدة تحت `guest_session_id`، ولا يصلها المتصفّح إلا عبر دوال 0010
+ * المُصرَّح بها لـ`anon`، وكلٌّ منها تتحقّق من الرمز بنفسها أولاً.
  *
- * و`sessionScopedFallback` بقي لحالة واحدة معلنة: تعذّر الجلسة أصلاً (تخزين
- * محجوب، أو تسجيل الدخول المجهول غير مفعّل في المشروع). حينها تبقى الشاشات
- * تعمل على المخزن المحلي بدل أن تنهار — ولا تدّعي أنها القاعدة.
+ * ثلاثة أشياء يجب أن تُقرأ معاً هنا:
+ *
+ *   ١) **لا سعر يُرسَل، في أي استدعاء.** المتصفّح يرسل معرّفات وكميات ورمزاً.
+ *      `guest_set_cart_item` تقرأ السعر من الرفّ، و`guest_place_order` تُسعّر
+ *      الطلب كله من القاعدة. لا حقل سعر في أي جسم طلب يخرج من هذا الملف.
+ *   ٢) **لا `localStorage` في هذا الملف إطلاقاً.** ما يُعرض هو ما ردّته
+ *      القاعدة في هذا التحميل بالذات. الرمز وحده مخزَّن، وهو في `guestSession`.
+ *   ٣) **مسار الإدارة لا يحمل رمز ضيف.** قراءات الإدارة وكتاباتها تبقى على
+ *      الجداول و`admin_set_order_status` كما كانت — والفرع مكتوب صراحةً
+ *      باسم `isAdminSignedIn()` كي لا يُخلط المساران بالصدفة.
+ *
+ * و`sessionScopedFallback` بقي لحالة واحدة معلنة: تعذّر الرمز أصلاً (تخزين
+ * محجوب، أو سقف الإصدار العالمي). حينها تبقى الشاشات تعمل على المخزن المحلي
+ * بدل أن تنهار — ولا تدّعي أنها القاعدة.
  *
  * والعميل هنا `PostgrestClient` وحده لا مظلّة `supabase-js`: التطبيق لا
  * يستعمل غير `.from()` و`.rpc()`، فراجع `@/lib/supabaseClient`.
  *
- * Reads use the publishable key plus the anonymous session's access token, so
- * RLS sees a real `auth.uid()`. The order lifecycle lives in the database; the
- * injected local repository is a declared last resort, never the source.
+ * Reads use the publishable key alone — the role is always `anon`. Guest
+ * identity travels as a token argument to the SECURITY DEFINER functions from
+ * migration 0010, never as a bearer credential and never through GoTrue. The
+ * order lifecycle lives in the database; the injected local repository is a
+ * declared last resort, never the source.
  */
 import type {
   PaymentStatus, ProductionStatus, ShippingStatus, StructuredAddress,
@@ -33,7 +46,8 @@ import type {
   Order, OrderLine, PlaceOrderItem, PlaceOrderRequest, RazeenRepository,
 } from "@/data/repositoryContract";
 import { isProductionEligible } from "@/data/repositoryContract";
-import { ensureAnonSession } from "@/lib/anonSession";
+import { isAdminSignedIn } from "@/lib/adminMode";
+import { ensureGuestToken, withGuestToken } from "@/lib/guestSession";
 import { readyMadePriceFils } from "@/lib/pricing";
 import type { RazeenPostgrestClient } from "@/lib/supabaseClient";
 
@@ -122,6 +136,13 @@ function mapOil(row: CatalogRow): CustomOil {
   };
 }
 
+/** ردّ `guest_create_custom_request` / عنصر `guest_list_custom_requests`. */
+export interface GuestCustomRequest {
+  request_id: string; catalog_code?: string | null; free_text_request?: string | null;
+  bottle_size: string; quantity: number; quoted_price_fils: number;
+  status: string; created_at?: string; cart_id?: string | null;
+}
+
 /**
  * السطوح الإضافية التي لا يعرفها عقد الصفحات لكن المشروع يملكها في القاعدة.
  * موجودة كي يكون لكل جدول مسار قراءة واحد معروف، لا استعلام متناثر.
@@ -129,6 +150,10 @@ function mapOil(row: CatalogRow): CustomOil {
 export interface SupabaseDataSurface extends RazeenRepository {
   listProductVariants(handle?: string): Promise<ProductVariantRow[]>;
   listCustomPerfumeRequests(): Promise<CustomPerfumeRequestRow[]>;
+  createCustomRequest(input: {
+    bottleSize: string; catalogCode?: string; freeText?: string;
+    quantity?: number; notes?: string; addToCart?: boolean;
+  }): Promise<GuestCustomRequest>;
   listCarts(): Promise<CartRow[]>;
   listCartItems(cartId: string): Promise<CartItemRow[]>;
   listShipments(): Promise<ShipmentRow[]>;
@@ -246,6 +271,45 @@ function mapOrder(row: OrderRow): Order {
   };
 }
 
+/**
+ * صفّ طلب كما تعيده `guest_order_status` — شكل آخر لأنه ردّ دالة لا صفّ جدول.
+ *
+ * وما ينقص فيه يُقال بصراحة: الدالة لا تُعيد اسم العميل ولا هاتفه (لا حاجة
+ * إليهما في «طلباتي»، وإعادتهما توسيع لسطح البيانات بلا سبب)، ولا صفّ طابور
+ * الإنتاج ولا الشحنة. فالمحوران الآخران يُشتقّان من `status` بالترجمة نفسها
+ * المستعملة للمسار الجدولي — لا جدول ترجمة ثانٍ.
+ */
+interface GuestOrderRow {
+  order_id: string; order_number: string; status: string; payment_status: string;
+  subtotal_fils: number; discount_fils: number; shipping_fils: number; total_fils: number;
+  currency: string; placed_at: string;
+  items?: Array<{ title: string; quantity: number; unit_price_fils: number; line_total_fils: number }>;
+}
+
+function mapGuestOrder(row: GuestOrderRow): Order {
+  return {
+    orderNumber: row.order_number,
+    createdAt: row.placed_at,
+    customer: { name: "", phone: "", address: addressOf(null) },
+    lines: (row.items ?? []).map((item, i) => ({
+      id: `${row.order_number}:${i}`,
+      kind: "ready" as const,
+      title: item.title,
+      unitPriceFils: item.unit_price_fils,
+      quantity: item.quantity,
+    })),
+    subtotalFils: row.subtotal_fils,
+    discountFils: row.discount_fils,
+    shippingFils: row.shipping_fils,
+    totalFils: row.total_fils,
+    currency: "AED",
+    paymentStatus: (row.payment_status === "authorized" ? "unpaid" : row.payment_status) as PaymentStatus,
+    productionStatus: productionOf(row.status),
+    shippingStatus: shippingOf(row.status),
+    trackingNumber: null,
+  };
+}
+
 const ORDER_SELECT =
   "id, order_number, status, payment_status, subtotal_fils, discount_fils, shipping_fils, " +
   "total_fils, currency, placed_at, shipping_address, " +
@@ -257,23 +321,71 @@ const ORDER_SELECT =
 export interface SupabaseRepositoryDeps {
   client: RazeenPostgrestClient;
   /**
-   * مسار القراءة العامة حين تتعذّر الجلسة تماماً (متصفّح بلا تخزين، أو
-   * `signInAnonymously` معطّل في المشروع). الطلب حينها لا يُنشأ أصلاً —
-   * `place_order` مُصرَّح بها لـ`authenticated` وحدها — فالبديل يُبقي الشاشات
-   * تعمل بدل أن تنهار، ولا يدّعي أنه القاعدة.
+   * مسار القراءة العامة حين يتعذّر رمز الضيف تماماً (متصفّح بلا تخزين، أو
+   * سقف الإصدار العالمي مستهلك). الطلب حينها لا يُنشأ أصلاً — كل دالة ضيف
+   * ترفض بلا رمز صالح — فالبديل يُبقي الشاشات تعمل بدل أن تنهار، ولا يدّعي
+   * أنه القاعدة.
    */
   sessionScopedFallback: RazeenRepository;
 }
 
 export function createSupabaseRepository({ client, sessionScopedFallback }: SupabaseRepositoryDeps): SupabaseDataSurface {
-  /** جلسة أو لا شيء. مسار الطلب كله يمرّ من هنا أولاً. */
-  async function requireSession(): Promise<boolean> {
+  /**
+   * رمز ضيف أو لا شيء. مسار المتسوّق كله يمرّ من هنا أولاً، والفشل يعني
+   * الرجوع إلى المخزن المحلي المعلن لا الانهيار.
+   */
+  async function hasGuestSession(): Promise<boolean> {
     try {
-      return (await ensureAnonSession()) !== null;
+      await ensureGuestToken();
+      return true;
     } catch (error) {
-      console.error("anonymous session unavailable", error);
+      console.error("guest session unavailable", error);
       return false;
     }
+  }
+
+  /**
+   * استدعاء دالة ضيف. خطأ PostgREST يُرفع استثناءً — وهذا شرط لا تجميل:
+   * `withGuestToken` لا تستطيع أن تنتعش من رمز ميّت إن ابتُلع الخطأ هنا.
+   */
+  async function guestRpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
+    const { data, error } = await client.rpc(fn, args);
+    if (error) {
+      const detail = [error.message, error.details, error.hint].filter(Boolean).join(" | ");
+      throw new Error(`Supabase ${fn}: ${detail}`);
+    }
+    return data as T;
+  }
+
+  // -------------------------------------------------------------------------
+  // فهرس المقاسات: `variant_id` ⇄ مقبض المنتج.
+  //
+  // دوال الضيف تتكلّم بمعرّفات المقاسات، وعقد الصفحات يتكلّم بمقابض
+  // (`ready:<handle>`). الترجمة تحتاج قراءة واحدة من الرفّ العام — وهو مقروء
+  // لـ`anon` بحكم `*_read_all` — وتُحفظ لبقية عمر الصفحة لا لأكثر.
+  // -------------------------------------------------------------------------
+  let variantIndex: Promise<Map<string, { handle: string; title: string }>> | null = null;
+
+  function variantsByHandle(): Promise<Map<string, { handle: string; title: string }>> {
+    if (!variantIndex) {
+      variantIndex = (async () => {
+        const { data, error } = await client
+          .from("product_variants")
+          .select("id, price_fils, is_active, products ( handle, title_ar )")
+          .eq("is_active", true)
+          .order("price_fils", { ascending: true });
+        fail("variant index", error);
+        const rows = (data ?? []) as unknown as Array<{
+          id: string; products?: { handle: string; title_ar: string } | null;
+        }>;
+        const map = new Map<string, { handle: string; title: string }>();
+        for (const r of rows) {
+          if (r.products?.handle) map.set(r.id, { handle: r.products.handle, title: r.products.title_ar });
+        }
+        return map;
+      })().catch((error) => { variantIndex = null; throw error; });
+    }
+    return variantIndex;
   }
 
   /** معرّف الطلب من رقمه — الدوال الإدارية تعمل بالمعرّف لا بالرقم. */
@@ -309,6 +421,14 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
     return updated;
   }
 
+  /** طلبات الجلسة كما تعيدها `guest_order_status`، بترجمة واحدة. */
+  async function guestOrders(orderNumber?: string): Promise<Order[]> {
+    const rows = await withGuestToken((p_token) =>
+      guestRpc<GuestOrderRow[]>("guest_order_status",
+        orderNumber ? { p_token, p_order_number: orderNumber } : { p_token }));
+    return (rows ?? []).map(mapGuestOrder);
+  }
+
   async function readOrder(orderNumber: string): Promise<Order | null> {
     const { data, error } = await client
       .from("orders").select(ORDER_SELECT).eq("order_number", orderNumber).maybeSingle();
@@ -317,29 +437,31 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
   }
 
   // -------------------------------------------------------------------------
-  // السلة الخادمية
+  // السلة الخادمية — عبر `guest_get_cart` / `guest_set_cart_item` /
+  // `guest_clear_cart` وحدها. لا `from("carts")` ولا `from("cart_items")` في
+  // مسار المتسوّق: الجداول محجوبة عنه بسياسة مقيِّدة في 0009، والباب الوحيد
+  // هو الدالة التي تتحقّق من الرمز.
   // -------------------------------------------------------------------------
-  /** سلة المستخدم المفتوحة — تُقرأ أولاً وتُنشأ فقط إن لم توجد. */
-  async function openCartId(create: boolean): Promise<string | null> {
-    const session = await ensureAnonSession();
-    const uid = session?.user?.id;
-    if (!uid) return null;
+  interface GuestCartItem {
+    item_id: string; kind: "ready" | "custom"; variant_id: string | null;
+    custom_request_id: string | null; title: string; quantity: number;
+    unit_price_fils: number; created_at: string;
+  }
+  interface GuestCart { cart_id: string; items: GuestCartItem[] }
 
-    const { data, error } = await client
-      .from("carts").select("id").eq("status", "open").limit(1).maybeSingle();
-    fail("carts", error);
-    const existing = (data as { id?: string } | null)?.id;
-    if (existing) return existing;
-    if (!create) return null;
-
-    const inserted = await client
-      .from("carts")
-      // `session_token` يحمل معرّف المستخدم كي يُستوفى قيد `cart_has_owner`
-      // قبل أن يوجد صف عميل — وصف العميل لا يوجد قبل أن يُكتب هاتف حقيقي.
-      .insert({ user_id: uid, session_token: uid, status: "open" })
-      .select("id").maybeSingle();
-    fail("cart insert", inserted.error);
-    return (inserted.data as { id?: string } | null)?.id ?? null;
+  /** سطور السلة كما تعيدها القاعدة ⇒ شكل العقد الذي تعرفه الصفحات. */
+  async function linesFromGuestCart(cart: GuestCart): Promise<OrderLine[]> {
+    const index = await variantsByHandle();
+    return (cart.items ?? [])
+      .filter((i) => i.kind === "ready" && i.variant_id && index.has(i.variant_id))
+      .map((i) => ({
+        id: `ready:${index.get(i.variant_id!)!.handle}`,
+        kind: "ready" as const,
+        title: i.title,
+        // السعر من ردّ القاعدة، لا من حساب هنا ولا من نسخة محلية.
+        unitPriceFils: i.unit_price_fils,
+        quantity: i.quantity,
+      }));
   }
 
   /** مقبض المنتج ⇒ المقاس المخزَّن الذي يُعرض سعره. نفس قاعدة العرض حرفياً. */
@@ -408,16 +530,21 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
     // بعد وصوله، بل لأن `orders_select_own` لا تُرجعه.
     // ---------------------------------------------------------------------
     async listOrders(): Promise<Order[]> {
-      if (!(await requireSession())) return sessionScopedFallback.listOrders();
-      const { data, error } = await client
-        .from("orders").select(ORDER_SELECT).order("placed_at", { ascending: false });
-      fail("orders", error);
-      return ((data ?? []) as unknown as OrderRow[]).map(mapOrder);
+      // مسار الإدارة كما كان: قراءة جدولية تحت RLS، بلا رمز ضيف.
+      if (isAdminSignedIn()) {
+        const { data, error } = await client
+          .from("orders").select(ORDER_SELECT).order("placed_at", { ascending: false });
+        fail("orders", error);
+        return ((data ?? []) as unknown as OrderRow[]).map(mapOrder);
+      }
+      if (!(await hasGuestSession())) return sessionScopedFallback.listOrders();
+      return guestOrders();
     },
 
     async getOrder(orderNumber: string): Promise<Order | null> {
-      if (!(await requireSession())) return sessionScopedFallback.getOrder(orderNumber);
-      return readOrder(orderNumber);
+      if (isAdminSignedIn()) return readOrder(orderNumber);
+      if (!(await hasGuestSession())) return sessionScopedFallback.getOrder(orderNumber);
+      return (await guestOrders(orderNumber))[0] ?? null;
     },
 
     /**
@@ -425,7 +552,7 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
      * في الاستعلام، و`isProductionEligible` على الناتج. التكرار مقصود.
      */
     async listProductionQueue(): Promise<Order[]> {
-      if (!(await requireSession())) return sessionScopedFallback.listProductionQueue();
+      // شاشة إدارية خلف البوّابة — قراءة جدولية، بلا رمز ضيف.
       const { data, error } = await client
         .from("orders").select(ORDER_SELECT)
         .eq("payment_status", "paid")
@@ -443,7 +570,7 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
      * وتُدخل المدفوع وحده في طابور الإنتاج.
      */
     async placeOrder(request: PlaceOrderRequest): Promise<Order> {
-      if (!(await requireSession())) return sessionScopedFallback.placeOrder(request);
+      if (!(await hasGuestSession())) return sessionScopedFallback.placeOrder(request);
 
       const items: Array<Record<string, unknown>> = [];
       for (const item of request.items as PlaceOrderItem[]) {
@@ -463,87 +590,107 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
         }
       }
 
-      const { data, error } = await client.rpc("place_order", {
-        p_items: items,
-        p_customer: {
-          full_name: request.customer.name,
-          phone: request.customer.phone,
-          emirate: request.customer.address.emirate,
-          area: request.customer.address.area,
-          street: request.customer.address.street,
-          building: request.customer.address.building,
-          flat: request.customer.address.flat ?? null,
-        },
-        p_idempotency_key: request.idempotencyKey,
-        p_outcome: request.outcome,
-      });
-      fail("place_order", error);
+      // الاستدعاء الوحيد. لاحظ ما ليس هنا: لا `subtotal` ولا `total` ولا
+      // `unit_price` ولا `discount`. المفتاح هو نفسه عند إعادة الإرسال،
+      // فالنقرة الثانية تُعيد الطلب الأول ولا تُنشئ ثانياً.
+      const placed = await withGuestToken((p_token) =>
+        guestRpc<{ order_number?: string } | null>("guest_place_order", {
+          p_token,
+          p_items: items,
+          p_customer: {
+            full_name: request.customer.name,
+            phone: request.customer.phone,
+            emirate: request.customer.address.emirate,
+            area: request.customer.address.area,
+            street: request.customer.address.street,
+            building: request.customer.address.building,
+            flat: request.customer.address.flat ?? null,
+          },
+          p_idempotency_key: request.idempotencyKey,
+          p_outcome: request.outcome,
+        }));
 
-      const placed = data as { order_number?: string } | null;
-      if (!placed?.order_number) throw new Error("place_order لم يُعد رقم طلب");
-      const order = await readOrder(placed.order_number);
+      if (!placed?.order_number) throw new Error("guest_place_order لم يُعد رقم طلب");
+      const order = (await guestOrders(placed.order_number))[0] ?? null;
       if (!order) throw new Error(`تعذّر قراءة الطلب ${placed.order_number} بعد إنشائه`);
       return order;
     },
 
     // -----------------------------------------------------------------------
-    // السلة — الخادم هو المصدر. `loadCart` لا تدمج ولا تُصالح: ما في القاعدة
-    // هو السلة، وما في التخزين المحلي نسخةٌ للرسم الأول تُستبدل بما يعود.
+    // السلة — الخادم هو المصدر. `loadCart` لا تدمج ولا تُصالح: ما ترجعه
+    // `guest_get_cart` **هو** السلة، وما في التخزين المحلي نسخةٌ للرسم الأول
+    // تُستبدل بما يعود. الترتيب مفروض في `@/lib/cart` صراحةً.
     //
-    // حدٌّ معلن: البند المخصص يحتاج صف `custom_perfume_requests`، وهو
-    // `customer_id not null`، وصف العميل يحتاج هاتفاً حقيقياً لا يُعرف قبل
-    // إتمام الطلب. فالبنود المخصصة تُنشأ خادمياً داخل `place_order` عند الدفع،
-    // وقبله لا تُكتب في `cart_items`. اختراع هاتفٍ ليُستوفى القيد كان سيلصق
-    // رقماً كاذباً بالعميل إلى الأبد — والهجرات مدموجة ولا تُمَسّ.
+    // وحدٌّ معلن بقي كما كان: البند المخصّص يُنشأ خادمياً عند الدفع داخل
+    // `guest_place_order` (أو عبر `createCustomRequest` حين تُطلب صراحةً)،
+    // وقبله يعيش في النسخة العابرة وحدها.
     // -----------------------------------------------------------------------
     async loadCart(): Promise<OrderLine[]> {
-      if (!(await requireSession())) return sessionScopedFallback.loadCart();
-      const cartId = await openCartId(false);
-      if (!cartId) return [];
-      const { data, error } = await client
-        .from("cart_items")
-        .select("id, quantity, unit_price_fils, variant_id, product_variants ( bottle_size, products ( handle, title_ar ) )")
-        .eq("cart_id", cartId);
-      fail("cart_items", error);
-      const rows = (data ?? []) as unknown as Array<{
-        id: string; quantity: number; unit_price_fils: number; variant_id: string | null;
-        product_variants?: { bottle_size: string | null; products?: { handle: string; title_ar: string } | null } | null;
-      }>;
-      return rows
-        .filter((r) => r.variant_id && r.product_variants?.products)
-        .map((r) => ({
-          id: `ready:${r.product_variants!.products!.handle}`,
-          kind: "ready" as const,
-          title: r.product_variants!.products!.title_ar,
-          unitPriceFils: r.unit_price_fils,
-          quantity: r.quantity,
-        }));
+      if (!(await hasGuestSession())) return sessionScopedFallback.loadCart();
+      const cart = await withGuestToken((p_token) =>
+        guestRpc<GuestCart>("guest_get_cart", { p_token }));
+      return linesFromGuestCart(cart);
     },
 
+    /**
+     * الحفظ = مزامنة كميات، بندًا بندًا، عبر `guest_set_cart_item`.
+     *
+     * لماذا لا «احذف الكل ثم أدخل»؟ لأن الحذف الجماعي لم يعد متاحاً من
+     * المتصفّح أصلاً (الجداول محجوبة)، ولأن الدالة تقبل الكمية صفراً بمعنى
+     * الحذف — فالمزامنة تُعبَّر عنها بالوسائط نفسها بلا مسار ثانٍ.
+     *
+     * ولا `unit_price_fils` في أي استدعاء: الدالة تقرأ السعر من الرفّ. هذا
+     * هو الموضع الذي كان المتصفّح يرسل فيه سعراً، ولم يعد.
+     */
     async saveCart(lines: OrderLine[]): Promise<void> {
-      if (!(await requireSession())) return sessionScopedFallback.saveCart(lines);
-      const cartId = await openCartId(true);
-      if (!cartId) return;
+      if (!(await hasGuestSession())) return sessionScopedFallback.saveCart(lines);
 
       const ready = lines.filter((l) => l.kind === "ready" && l.id.startsWith("ready:"));
-      const rows: Array<Record<string, unknown>> = [];
-      for (const line of ready) {
-        const variantId = await variantIdForHandle(line.id.slice("ready:".length));
-        if (!variantId) continue;
-        rows.push({
-          cart_id: cartId, variant_id: variantId,
-          quantity: line.quantity, unit_price_fils: line.unitPriceFils,
-        });
+      if (ready.length === 0) {
+        await withGuestToken((p_token) => guestRpc<GuestCart>("guest_clear_cart", { p_token }));
+        return;
       }
 
-      // استبدال كامل لا مزامنة تفاضلية: السلة صغيرة، والاستبدال لا يمكن أن
-      // يترك بنداً يتيماً من حالة سابقة.
-      const removed = await client.from("cart_items").delete().eq("cart_id", cartId);
-      fail("cart clear", removed.error);
-      if (rows.length > 0) {
-        const inserted = await client.from("cart_items").insert(rows);
-        fail("cart save", inserted.error);
+      const wanted = new Map<string, number>();
+      for (const line of ready) {
+        const variantId = await variantIdForHandle(line.id.slice("ready:".length));
+        if (variantId) wanted.set(variantId, line.quantity);
       }
+
+      await withGuestToken(async (p_token) => {
+        const current = await guestRpc<GuestCart>("guest_get_cart", { p_token });
+        // ما في الخادم ولم يعد مطلوباً ⇒ كمية صفر (أي حذف).
+        for (const item of current.items ?? []) {
+          if (item.variant_id && !wanted.has(item.variant_id)) {
+            await guestRpc("guest_set_cart_item", {
+              p_token, p_variant_id: item.variant_id, p_quantity: 0,
+            });
+          }
+        }
+        for (const [p_variant_id, p_quantity] of wanted) {
+          await guestRpc("guest_set_cart_item", { p_token, p_variant_id, p_quantity });
+        }
+      });
+    },
+
+    /**
+     * طلب عطر مخصّص باسم الجلسة — بلا صف عميل وبلا هاتف. السعر من
+     * `custom_price_fils` في القاعدة، والحالة `new` مفروضة هناك لا هنا.
+     */
+    async createCustomRequest(input: {
+      bottleSize: string; catalogCode?: string; freeText?: string;
+      quantity?: number; notes?: string; addToCart?: boolean;
+    }): Promise<GuestCustomRequest> {
+      return withGuestToken((p_token) =>
+        guestRpc<GuestCustomRequest>("guest_create_custom_request", {
+          p_token,
+          p_bottle_size: input.bottleSize,
+          p_catalog_code: input.catalogCode ?? null,
+          p_free_text: input.catalogCode ? null : (input.freeText ?? null),
+          p_quantity: input.quantity ?? 1,
+          p_notes: input.notes ?? null,
+          p_add_to_cart: input.addToCart ?? true,
+        }));
     },
 
     // حالات الطلب: البابان المُعلنان في 0006، لا UPDATE مباشرة (وهي ممنوعة).
@@ -558,13 +705,27 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
 
     // سطوح قراءة إضافية (تحتاج جلسة كذلك؛ anon يراها فارغة بحكم RLS).
     // ---------------------------------------------------------------------
+    /**
+     * طلبات العطر المخصّص لهذه الجلسة وحدها — `guest_list_custom_requests`
+     * تحصرها بـ`guest_session_id`، فلا حاجة إلى تصفية بعد الوصول (ولا فائدة
+     * منها: ما لا تُرجعه الدالة لا يصل أصلاً).
+     */
     async listCustomPerfumeRequests(): Promise<CustomPerfumeRequestRow[]> {
-      const { data, error } = await client
-        .from("custom_perfume_requests")
-        .select("id, customer_id, catalog_id, free_text_request, bottle_size, quantity, quoted_price_fils, status, customer_notes, created_at")
-        .order("created_at", { ascending: false });
-      fail("custom_perfume_requests", error);
-      return (data ?? []) as unknown as CustomPerfumeRequestRow[];
+      if (!(await hasGuestSession())) return [];
+      const rows = await withGuestToken((p_token) =>
+        guestRpc<GuestCustomRequest[]>("guest_list_custom_requests", { p_token }));
+      return (rows ?? []).map((r) => ({
+        id: r.request_id,
+        customer_id: "",
+        catalog_id: null,
+        free_text_request: r.free_text_request ?? null,
+        bottle_size: r.bottle_size,
+        quantity: r.quantity,
+        quoted_price_fils: r.quoted_price_fils,
+        status: r.status,
+        customer_notes: null,
+        created_at: r.created_at ?? "",
+      }));
     },
 
     async listCarts(): Promise<CartRow[]> {
@@ -595,7 +756,6 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
      * ممنوعة على كل دور عميل. يُقرأ من القاعدة لا من أي مخزن محلي.
      */
     async listAuditLogs(): Promise<AuditLogRow[]> {
-      if (!(await requireSession())) return [];
       const { data, error } = await client
         .from("audit_logs")
         .select("id, actor_id, actor_role, action, entity, entity_id, created_at")

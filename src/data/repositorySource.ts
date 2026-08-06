@@ -23,9 +23,10 @@ export const activeRepository: RazeenRepository =
   repositorySource === "supabase"
     ? createSupabaseRepository({
         client: getSupabaseClient(),
-        // مسار الطلب يحتاج `auth.uid()`، وتوفيره صار مسؤولية `anonSession`:
-        // جلسة مجهولة دائمة تُنشأ مرة واحدة لكل متصفّح. هذا البديل لا يعمل إلا
-        // حين تتعذّر تلك الجلسة أصلاً — وهي حالة معلنة لا الحالة العادية.
+        // مسار الطلب يمرّ بدوال الضيف في 0010، وهويته رمز يوفّره
+        // `guestSession`: يُصدَر مرة واحدة لكل متصفّح ويُخزَّن وحده. هذا
+        // البديل لا يعمل إلا حين يتعذّر الرمز أصلاً (تخزين محجوب، أو سقف
+        // الإصدار) — وهي حالة معلنة لا الحالة العادية.
         sessionScopedFallback: mockRepository,
       })
     : mockRepository;

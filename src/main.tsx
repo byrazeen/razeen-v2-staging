@@ -8,7 +8,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { findViolations } from "./config/envGuard";
 import { stagingEnv, stagingHost } from "./config/stagingEnv";
-import { ensureAnonSession } from "./lib/anonSession";
+import { ensureGuestToken } from "./lib/guestSession";
 import "./styles.css";
 
 const violations = findViolations({ env: stagingEnv, host: stagingHost });
@@ -25,10 +25,10 @@ if (violations.length > 0) {
     </div>
   );
 } else {
-  // الجلسة تُهيَّأ بعد الحارس ومرة واحدة: تُقرأ الجلسة المحفوظة إن وُجدت،
-  // ولا يُوقَّع دخول مجهول إلا حين لا توجد. الاستدعاءات اللاحقة كلها تشترك في
-  // الوعد نفسه، فتحديث الصفحة لا يُنشئ مستخدماً ثانياً. الفشل لا يمنع الإقلاع:
+  // جلسة الضيف تُهيَّأ بعد الحارس ومرة واحدة: يُقرأ الرمز المخزَّن إن وُجد،
+  // ولا يُصدَر رمز جديد إلا حين لا يوجد. الاستدعاءات اللاحقة كلها تشترك في
+  // الوعد نفسه، فتحديث الصفحة لا يُصدر جلسة ثانية. الفشل لا يمنع الإقلاع:
   // الرفّ العام مقروء بلا جلسة، ومسار الطلب يعلن تعذّره حين يُطلب.
-  ensureAnonSession().catch((error) => { console.error("anonymous session bootstrap failed", error); });
+  ensureGuestToken().catch((error) => { console.error("guest session bootstrap failed", error); });
   root.render(<StrictMode><App /></StrictMode>);
 }
