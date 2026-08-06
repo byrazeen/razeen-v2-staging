@@ -4,7 +4,8 @@ import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { readyMadePriceFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
-import { ProductRow } from "@/components/ProductRow";
+import { ProductCard } from "@/components/ProductCard";
+import { BulkOfferCard } from "@/components/BulkNote";
 
 export default function Ready() {
   const state = useAsync(() => repository.listProducts(), [], { cacheKey: "products" });
@@ -28,19 +29,22 @@ export default function Ready() {
                 <span className="num">{list.filter((p) => p.is_available).length}</span> متوفر من{" "}
                 <span className="num">{list.length}</span>
               </h2>
-              <div className="grid list-2">
+              <div className="shelf">
                 {sorted.map((p) => {
                   // السعر المخزَّن وحده. بلا سعر صالح ⇒ غير متاح، بلا رقم مُخترع.
                   const priceFils = readyMadePriceFils(p.priceFils);
                   return (
-                    <ProductRow
+                    <ProductCard
                       key={p.handle} handle={p.handle} title={p.title}
                       priceFils={priceFils}
+                      family={p.family} intensity={p.intensity}
                       dimmed={!p.is_available}
-                      note={priceFils === null ? UNAVAILABLE_LABEL : p.is_available ? "متوفر الآن" : "نفد — لا يُعرض للشراء"}
+                      state={priceFils === null ? UNAVAILABLE_LABEL : p.is_available ? "متوفر الآن" : "نفد"}
                     />
                   );
                 })}
+                {/* قاعدة الكمية تشغل الخليّة الأخيرة: تُقرأ وهو يتصفّح، لا بعد أن يقرّر. */}
+                <BulkOfferCard />
               </div>
             </>
           );

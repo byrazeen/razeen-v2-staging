@@ -16,9 +16,34 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/lib/cart";
-import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL, FILS_PER_AED } from "@/lib/pricing";
+import { readyMadePriceFils, UNAVAILABLE_LABEL, FILS_PER_AED } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
-import { Media } from "@/components/Media";
+import { ProductCard } from "@/components/ProductCard";
+
+/**
+ * علامة الخيار.
+ *
+ * كانت الأسئلة أربعة مستطيلات رمادية متطابقة — أكثر شاشة قالبيّة في البناء،
+ * وسؤالٌ عن الرائحة بلا أي إشارة إلى ما تعنيه الإجابة. العلامة هنا لا تخترع
+ * صورةً: العائلة مسحةٌ من ألوان الدار نفسها (ذهب للدافئ، ورق للمنعش، بنفسجي
+ * للحلو، حبر للخشبي)، والقوة ثلاثة أعمدة يضيء منها بقدرها. زخرفة صرفة: النصّ
+ * وحده يحمل المعنى للقارئ الصوتي.
+ */
+function OptionMark({ family, level }: { family?: string; level?: number }) {
+  if (family) {
+    return <span className="mark" aria-hidden="true"><span className={`swatch ${family}`} /></span>;
+  }
+  if (level) {
+    return (
+      <span className="mark" aria-hidden="true">
+        <span className="bars">
+          {[1, 2, 3].map((i) => <i key={i} className={i <= level ? "on" : ""} />)}
+        </span>
+      </span>
+    );
+  }
+  return null;
+}
 
 const QUESTIONS = [
   { key: "family", label: "أي جو تحب؟", options: [
@@ -96,8 +121,12 @@ export default function Discover() {
         <h2 style={{ marginTop: 18 }}>{q.label}</h2>
         <div className="grid two">
           {q.options.map((o) => (
-            <button key={o.value} className="btn ghost"
+            <button key={o.value} className={`btn ghost ${q.key === "budget" ? "" : "opt"}`.trim()}
               onClick={() => goto(step + 1, { [q.key]: o.value })}>
+              <OptionMark
+                family={q.key === "family" ? o.value : undefined}
+                level={q.key === "intensity" ? Number(o.value) : undefined}
+              />
               {o.label}
             </button>
           ))}
@@ -121,21 +150,19 @@ export default function Discover() {
             <Empty title="ما عندنا شي متوفر يناسب اختيارك الحين" hint="جرّب العطر المخصص." headingLevel={2}
               action={<Link className="btn" to="/custom" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>صمّم عطرك</Link>} />
           ) : (
-            <div className="grid list-2">
+            <div className="shelf">
               {picks.map(({ p, why }) => {
                 const priceFils = readyMadePriceFils(p.priceFils);
                 return (
-                  <div key={p.handle} className="card">
-                    <div className="row" style={{ gap: 14, alignItems: "flex-start" }}>
-                      <Media size="thumb" label={p.title} />
-                      <span style={{ minWidth: 0, flex: 1 }}>
-                        <Link to={`/product/${p.handle}`}><strong style={{ display: "block" }}>{p.title}</strong></Link>
-                        {/* السبب معروض دائماً — الترشيح بلا تعليل لا يُقنع أحداً */}
-                        <span className="tiny muted">ليش رشّحناه: {why.join(" · ")}</span>
-                      </span>
-                      <span className={priceFils === null ? "price-na" : "price"}>{priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}</span>
-                    </div>
-                    <button className="btn" style={{ marginTop: 12 }} disabled={priceFils === null}
+                  <div key={p.handle} className="pick">
+                    <ProductCard
+                      handle={p.handle} title={p.title} priceFils={priceFils}
+                      family={p.family} intensity={p.intensity}
+                      state={`متوفر — ${p.quantity} قطعة`}
+                    />
+                    {/* السبب معروض دائماً — الترشيح بلا تعليل لا يُقنع أحداً */}
+                    <p className="why">ليش رشّحناه: {why.join(" · ")}</p>
+                    <button className="btn" disabled={priceFils === null}
                       onClick={() => {
                         if (priceFils === null) return;
                         cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPriceFils: priceFils });
