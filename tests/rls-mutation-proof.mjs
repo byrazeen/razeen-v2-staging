@@ -24,6 +24,11 @@ const MUTATIONS = [
     name: "العميل يعدّل المدفوعات",
     sql: `create policy tmp_payments_write on public.payments for update to authenticated using (true) with check (true);`,
   },
+  {
+    // الطفرة التي تعيد الثغرة الحقيقية: إعادة منح تنفيذ دالة كتابة السجل.
+    name: "سجل التدقيق قابل للتزوير من جديد",
+    sql: `grant execute on function public.write_audit_log(text, text, uuid, jsonb, jsonb) to authenticated;`,
+  },
 ];
 
 const run = (env) =>
