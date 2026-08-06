@@ -15,8 +15,8 @@ export interface CustomOrderContract {
   perfumeCode: string;
   size: "50ml" | "100ml" | "200ml";
   quantity: number;
-  /** Server-computed. The number shown to the customer is the number charged. */
-  unitPrice: number;
+  /** بالفلس الصحيح. الرقم المعروض للعميل هو نفسه الرقم المخزَّن والمُحصَّل. */
+  unitPriceFils: number;
   currency: "AED";
   customerNotes: string | null;
   customer: { name: string; phone: string; address: StructuredAddress };
@@ -40,6 +40,6 @@ export type ShippingStatus = "not_shipped" | "handed_over" | "in_transit" | "del
 /** Columns every export shares. Derived from the contract — never hand-edited. */
 export const EXPORT_COLUMNS = [
   "orderNumber", "perfumeCode", "perfumeBrand", "perfumeName", "size", "quantity",
-  "unitPrice", "customerNotes", "customerName", "customerPhone", "customerAddress",
+  "unitPriceFils", "customerNotes", "customerName", "customerPhone", "customerAddress",
   "paymentStatus", "productionStatus", "shippingStatus", "createdAt",
 ] as const;

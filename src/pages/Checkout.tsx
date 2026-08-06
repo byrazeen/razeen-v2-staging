@@ -8,10 +8,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/lib/cart";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { formatFils, lineTotalFils, BULK_DISCOUNT_PERCENT } from "@/lib/pricing";
 import { placeOrder, type CheckoutResult } from "@/lib/orderFlow";
 import { setMockPaymentOutcome, type MockPaymentOutcome } from "@/adapters/mock";
-import { Empty, FieldError, PlaceholderPriceNote } from "@/components/states";
+import { Empty, FieldError } from "@/components/states";
 
 const EMIRATES = ["دبي", "أبوظبي", "الشارقة", "عجمان", "أم القيوين", "رأس الخيمة", "الفجيرة"];
 
@@ -41,7 +41,7 @@ export default function Checkout() {
   const [result, setResult] = useState<CheckoutResult | null>(null);
 
   const totals = cart.totals;
-  const money = STAGING_PRICING_PLACEHOLDER.format;
+  const money = formatFils;
   /** التصحيح يُخفي رسالة الحقل فوراً — رسالة خطأ باقية على حقل صحيح تُربك أكثر مما تُرشد. */
   const set = (key: keyof Form) => (e: { target: { value: string } }) => {
     const next = { ...form, [key]: e.target.value };
@@ -152,17 +152,24 @@ export default function Checkout() {
           {cart.lines.map((l) => (
             <div key={l.id} className="row" style={{ justifyContent: "space-between" }}>
               <span className="small">{l.title} ×{l.quantity}</span>
-              <span className="small">{money(STAGING_PRICING_PLACEHOLDER.lineTotal(l))}</span>
+              <span className="small">{money(lineTotalFils(l))}</span>
             </div>
           ))}
           <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-            <span className="muted small">الشحن</span><span className="small">{totals.shipping === 0 ? "مجاني" : money(totals.shipping)}</span>
+            <span className="muted small">المجموع</span><span className="small" data-testid="checkout-subtotal">{money(totals.subtotalFils)}</span>
+          </div>
+          {totals.discountFils > 0 && (
+            <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
+              <span className="muted small">خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
+              <span className="small" data-testid="checkout-discount">−{money(totals.discountFils)}</span>
+            </div>
+          )}
+          <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
+            <span className="muted small">الشحن</span><span className="small" data-testid="checkout-shipping">{totals.shippingFils === 0 ? "مجاني" : money(totals.shippingFils)}</span>
           </div>
           <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-            <strong>الإجمالي</strong><strong style={{ fontSize: 20 }} data-testid="checkout-total">{money(totals.total)}</strong>
+            <strong>الإجمالي</strong><strong style={{ fontSize: 20 }} data-testid="checkout-total">{money(totals.totalFils)}</strong>
           </div>
-          {/* التنبيه ظاهر عند كل سعر في إتمام الطلب — لا رقم هنا نهائي */}
-          <PlaceholderPriceNote />
         </div>
 
         <h2>نتيجة الدفع التجريبي</h2>

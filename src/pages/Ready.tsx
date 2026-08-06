@@ -2,7 +2,7 @@
 import { Link } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
 
 export default function Ready() {
@@ -23,17 +23,24 @@ export default function Ready() {
             <>
               <p className="tiny muted">{list.filter((p) => p.is_available).length} متوفر من {list.length}</p>
               <div className="grid" style={{ marginTop: 12 }}>
-                {sorted.map((p) => (
-                  <Link key={p.handle} to={`/product/${p.handle}`} className="card row" style={{ justifyContent: "space-between", opacity: p.is_available ? 1 : 0.55 }}>
-                    <span>
-                      <strong>{p.title}</strong>
-                      <span className="tiny muted" style={{ display: "block" }}>{p.is_available ? "متوفر" : "نفد — لا يُعرض للشراء"}</span>
-                    </span>
-                    <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {STAGING_PRICING_PLACEHOLDER.format(STAGING_PRICING_PLACEHOLDER.quoteReadyMade(p.price).unitPrice)}
-                    </span>
-                  </Link>
-                ))}
+                {sorted.map((p) => {
+                  // السعر المخزَّن وحده. بلا سعر صالح ⇒ غير متاح، بلا رقم مُخترع.
+                  const priceFils = readyMadePriceFils(p.priceFils);
+                  const buyable = p.is_available && priceFils !== null;
+                  return (
+                    <Link key={p.handle} to={`/product/${p.handle}`} className="card row" style={{ justifyContent: "space-between", opacity: buyable ? 1 : 0.55 }}>
+                      <span>
+                        <strong>{p.title}</strong>
+                        <span className="tiny muted" style={{ display: "block" }}>
+                          {priceFils === null ? UNAVAILABLE_LABEL : p.is_available ? "متوفر" : "نفد — لا يُعرض للشراء"}
+                        </span>
+                      </span>
+                      <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                        {priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             </>
           );

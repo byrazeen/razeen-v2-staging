@@ -1,94 +1,175 @@
 /**
- * ⚠️ STAGING_PRICING_PLACEHOLDER — سعر تجريبي، وليست سياسة تسعير.
- * ⚠️ STAGING_PRICING_PLACEHOLDER — A PLACEHOLDER, NOT THE PRICING POLICY.
+ * سياسة التسعير المعتمدة من المالك — المصدر الوحيد لكل رقم يُعرض أو يُخزَّن.
+ * The owner-approved pricing policy. Single source of truth for every number
+ * shown in the UI and every number written to the database.
  *
- * كل رقم يُعرض في هذا التطبيق يخرج من هنا وحده: العطور الجاهزة، العطر المخصص،
- * الشحن، والمجاميع. مصدر واحد لأن التدقيق وجد سعراً يُحسب في الواجهة وسعراً آخر
- * يُحصَّل على الخادم. هذه الأرقام **غير معتمدة** ولا تُنقل إلى الإنتاج.
+ * القواعد (بالحرف، بلا اجتهاد):
+ *   1. العطر الجاهز: السعر المخزَّن للمقاس (`product_variants.price_fils`) كما هو.
+ *      لا معادلة، لا مضاعِف مقاس، ولا اشتقاق. السعر المخزَّن لا يُعدَّل أبداً.
+ *   2. أي مقاس بلا سعر صالح (غائب أو null أو ≤ 0) غير قابل للشراء: يُعرض
+ *      «غير متاح حالياً»، ويُعطَّل زر الإضافة، ولا يُخترع له سعر بديل.
+ *   3. العطر المخصص: 50ml = 280 درهم، 100ml = 320 درهم. هذان المقاسان فقط،
+ *      وما عداهما تنطبق عليه القاعدة 2.
+ *   4. الشحن: 25 درهم ثابتة.
+ *   5. من 3 عطور فأكثر في السلة (مجموع الكميات، جاهز ومخصص معاً): الشحن مجاني
+ *      **و** خصم 5% على مجموع العطور.
+ *   6. نفس الأرقام في السلة وإتمام الطلب وملخّص الطلب ولوحة الإدارة — حساب واحد.
  *
- * Every price rendered anywhere in this app comes from this single export —
- * ready-made, custom, shipping and totals. One source, because the audit found
- * the client and the server disagreeing on 47.7% of the catalogue, and 96% of
- * custom prices derived from a hash of the oil code rather than from cost.
- *
- * The real formula (cost, floor, margin, bottle surcharge, size) is a commercial
- * decision that has NOT been made. Until it is, this exists only so the journey
- * renders a number — and every number it returns is labelled in the UI.
- *
- * Do not promote this file to production. Do not "improve" it into a policy.
+ * كل الحساب بالفلس الصحيح (عدد صحيح). 100 فلس = 1 درهم. لا عدد عشري للمال
+ * إطلاقاً، وتقريب الخصم معرَّف هنا مرة واحدة (تقريب النصف لأعلى على الفلس) كي لا
+ * يفترق ما يراه العميل عمّا يُحفظ في الطلب.
  */
 
-/** الجملة الوحيدة التي تُعرض بجانب أي سعر. One note, shown wherever a price appears. */
-const PLACEHOLDER_NOTE = "سعر تجريبي — لم تُعتمد سياسة التسعير بعد · staging placeholder, not final pricing";
+/** 100 فلس = 1 درهم. */
+export const FILS_PER_AED = 100;
 
-const SIZE_FACTOR: Record<string, number> = { "50ml": 0.6, "100ml": 1, "200ml": 1.9 };
+/** الشحن الثابت داخل الإمارات — 25 درهماً. */
+export const SHIPPING_FLAT_FILS = 25 * FILS_PER_AED;
 
-/** شحن ثابت داخل الإمارات يسقط بعد عدد أصناف — رقم تجريبي أيضاً. */
-const SHIPPING_FLAT = 25;
-const FREE_SHIPPING_FROM_ITEMS = 3;
+/** من ثلاث عطور فأكثر: شحن مجاني + خصم. */
+export const BULK_THRESHOLD_ITEMS = 3;
 
-export interface Quote {
-  unitPrice: number;
-  currency: "AED";
-  /** دائماً true في staging — الواجهة تعتمد عليها لعرض التنبيه. */
-  isPlaceholder: true;
-  note: string;
+/** نسبة خصم الكمية. */
+export const BULK_DISCOUNT_PERCENT = 5;
+
+/** العطر المخصص: مقاسان معتمدان فقط. */
+export const CUSTOM_PRICE_FILS: Readonly<Record<string, number>> = Object.freeze({
+  "50ml": 280 * FILS_PER_AED,
+  "100ml": 320 * FILS_PER_AED,
+});
+
+/** النص الوحيد لحالة «لا سعر صالح». */
+export const UNAVAILABLE_LABEL = "غير متاح حالياً";
+
+export const CURRENCY = "AED" as const;
+
+/** ما يكفي لتسعير سطر: سعر الوحدة بالفلس، والكمية. */
+export interface Priceable {
+  unitPriceFils: number;
+  quantity: number;
 }
 
-export interface Priceable { unitPrice: number; quantity: number; }
-
 export interface Totals {
-  subtotal: number; shipping: number; total: number; itemCount: number;
-  currency: "AED"; isPlaceholder: true; note: string;
+  /** مجموع الكميات (عطور جاهزة + مخصصة). */
+  itemCount: number;
+  subtotalFils: number;
+  discountFils: number;
+  shippingFils: number;
+  totalFils: number;
+  /** هل انطبقت قاعدة الكمية (3 فأكثر)؟ */
+  bulkApplied: boolean;
+  currency: typeof CURRENCY;
+}
+
+/** رقم صحيح موجب فقط يُقبل كسعر. أي شيء آخر = لا سعر. */
+function isUsableFils(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value > 0;
 }
 
 /**
- * المصدر الوحيد للأسعار في staging.
- * The single pricing source. Nothing else in the app may compute a price.
+ * تقريب النصف لأعلى على الفلس — **معرَّف مرة واحدة** ويُستعمل في كل مكان.
+ * حساب صحيح بالكامل: لا قسمة عشرية ولا تقريب على عدد عشري.
  */
-export const STAGING_PRICING_PLACEHOLDER = {
-  isPlaceholder: true as const,
-  note: PLACEHOLDER_NOTE,
-  currency: "AED" as const,
-  shippingFlat: SHIPPING_FLAT,
-  freeShippingFromItems: FREE_SHIPPING_FROM_ITEMS,
+export function roundHalfUpFils(numerator: number, denominator: number): number {
+  if (!Number.isInteger(numerator) || !Number.isInteger(denominator) || denominator <= 0) {
+    throw new Error("roundHalfUpFils: الحساب بالفلس الصحيح فقط");
+  }
+  return Math.floor((numerator * 2 + denominator) / (denominator * 2));
+}
 
-  /** عطر جاهز: السعر المخزَّن كما هو، ومع ذلك يُوسم تجريبياً. */
-  quoteReadyMade(catalogPrice: number): Quote {
-    return { unitPrice: Math.max(0, Math.round(catalogPrice)), currency: "AED", isPlaceholder: true, note: PLACEHOLDER_NOTE };
-  },
+/** نسبة مئوية من مبلغ بالفلس، بتقريب النصف لأعلى. */
+export function percentOfFils(amountFils: number, percent: number): number {
+  if (!Number.isInteger(amountFils) || amountFils < 0) {
+    throw new Error("percentOfFils: المبلغ يجب أن يكون فلساً صحيحاً غير سالب");
+  }
+  return roundHalfUpFils(amountFils * percent, 100);
+}
 
-  /** عطر مخصص: من سعر الكيلو والحجم. رقم تجريبي بحت. */
-  quoteCustom(kiloPrice: number, size: string): Quote {
-    const base = Math.round(kiloPrice / 10) + 110;
-    return {
-      unitPrice: Math.max(1, Math.round(base * (SIZE_FACTOR[size] ?? 1))),
-      currency: "AED", isPlaceholder: true, note: PLACEHOLDER_NOTE,
-    };
-  },
+/**
+ * سعر عطر جاهز = السعر المخزَّن للمقاس، حرفياً. لا اشتقاق ولا بديل.
+ * يعيد `null` حين لا يوجد سعر صالح — والصفحة تعرض حينها «غير متاح حالياً».
+ */
+export function readyMadePriceFils(storedPriceFils: number | null | undefined): number | null {
+  return isUsableFils(storedPriceFils) ? storedPriceFils : null;
+}
 
-  /** عطر غير موجود في القائمة — لا يُسعَّر قبل تأكيد التوفر. */
-  quoteUnlistedCustom(): Quote {
-    return { unitPrice: 0, currency: "AED", isPlaceholder: true, note: PLACEHOLDER_NOTE };
-  },
+/** سعر العطر المخصص حسب المقاس. أي مقاس غير معتمد ⇒ غير قابل للشراء. */
+export function customPriceFils(size: string | null | undefined): number | null {
+  if (!size) return null;
+  const price = CUSTOM_PRICE_FILS[size];
+  return isUsableFils(price) ? price : null;
+}
 
-  lineTotal(line: Priceable): number { return line.unitPrice * line.quantity; },
+/** هل هذا السعر قابل للشراء أصلاً؟ */
+export function isPurchasable(priceFils: number | null | undefined): boolean {
+  return isUsableFils(priceFils);
+}
 
-  shippingFor(itemCount: number): number {
-    return itemCount >= FREE_SHIPPING_FROM_ITEMS ? 0 : SHIPPING_FLAT;
-  },
+/** مجموع السطر. */
+export function lineTotalFils(line: Priceable): number {
+  if (!isUsableFils(line.unitPriceFils) || !Number.isInteger(line.quantity) || line.quantity <= 0) return 0;
+  return line.unitPriceFils * line.quantity;
+}
 
-  /** المجاميع كلها من هنا — لا صفحة تجمع بنفسها. */
-  totals(lines: Priceable[]): Totals {
-    const itemCount = lines.reduce((n, l) => n + l.quantity, 0);
-    const subtotal = lines.reduce((n, l) => n + l.unitPrice * l.quantity, 0);
-    const shipping = STAGING_PRICING_PLACEHOLDER.shippingFor(itemCount);
-    return { subtotal, shipping, total: subtotal + shipping, itemCount, currency: "AED", isPlaceholder: true, note: PLACEHOLDER_NOTE };
-  },
+/** الشحن حسب عدد العطور. */
+export function shippingFilsFor(itemCount: number): number {
+  return itemCount >= BULK_THRESHOLD_ITEMS ? 0 : SHIPPING_FLAT_FILS;
+}
 
-  /** صياغة موحّدة للعرض. */
-  format(amount: number): string { return `${amount} د.إ`; },
+/** الخصم حسب عدد العطور ومجموعها. */
+export function discountFilsFor(itemCount: number, subtotalFils: number): number {
+  return itemCount >= BULK_THRESHOLD_ITEMS ? percentOfFils(subtotalFils, BULK_DISCOUNT_PERCENT) : 0;
+}
+
+/**
+ * المجاميع — الحساب الوحيد في التطبيق. لا صفحة تجمع بنفسها.
+ * السطور بلا سعر صالح لا تُسعَّر ولا تُحتسب (ولا يجب أن تصل السلة أصلاً).
+ */
+export function totals(lines: readonly Priceable[]): Totals {
+  const priced = lines.filter((l) => isUsableFils(l.unitPriceFils) && Number.isInteger(l.quantity) && l.quantity > 0);
+  const itemCount = priced.reduce((n, l) => n + l.quantity, 0);
+  const subtotalFils = priced.reduce((n, l) => n + lineTotalFils(l), 0);
+  const discountFils = discountFilsFor(itemCount, subtotalFils);
+  const shippingFils = shippingFilsFor(itemCount);
+  return {
+    itemCount,
+    subtotalFils,
+    discountFils,
+    shippingFils,
+    totalFils: subtotalFils - discountFils + shippingFils,
+    bulkApplied: itemCount >= BULK_THRESHOLD_ITEMS,
+    currency: CURRENCY,
+  };
+}
+
+/** صياغة العرض — من الفلس الصحيح مباشرة، بلا قسمة عشرية. */
+export function formatFils(amountFils: number): string {
+  const sign = amountFils < 0 ? "−" : "";
+  const abs = Math.abs(Math.trunc(amountFils));
+  const dirhams = Math.floor(abs / FILS_PER_AED);
+  const fils = abs % FILS_PER_AED;
+  return fils === 0
+    ? `${sign}${dirhams} د.إ`
+    : `${sign}${dirhams}.${String(fils).padStart(2, "0")} د.إ`;
+}
+
+/** الواجهة المجمّعة — للاستيراد المريح في الصفحات. */
+export const RAZEEN_PRICING = {
+  FILS_PER_AED,
+  SHIPPING_FLAT_FILS,
+  BULK_THRESHOLD_ITEMS,
+  BULK_DISCOUNT_PERCENT,
+  CUSTOM_PRICE_FILS,
+  UNAVAILABLE_LABEL,
+  currency: CURRENCY,
+  roundHalfUpFils,
+  percentOfFils,
+  readyMadePriceFils,
+  customPriceFils,
+  isPurchasable,
+  lineTotalFils,
+  shippingFilsFor,
+  discountFilsFor,
+  totals,
+  format: formatFils,
 } as const;
-
-/** نص التنبيه، للاستيراد المباشر في المكوّنات. */
-export const PLACEHOLDER_PRICE_NOTE = PLACEHOLDER_NOTE;

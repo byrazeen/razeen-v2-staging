@@ -7,7 +7,7 @@ import { Link, useParams } from "react-router-dom";
 import { repository, isProductionEligible, type Order } from "@/data/repository";
 import type { ProductionStatus, ShippingStatus } from "@/config/customOrderContract";
 import { useAsync } from "@/lib/useAsync";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { formatFils, lineTotalFils, BULK_DISCOUNT_PERCENT } from "@/lib/pricing";
 import { notifyShipment } from "@/lib/orderFlow";
 import { AdminGate } from "@/components/AdminGate";
 import { Async, Empty } from "@/components/states";
@@ -50,7 +50,7 @@ export default function AdminOrder() {
                         {l.perfumeCode && <span className="tiny muted" style={{ display: "block" }}>كود الزيت: {l.perfumeCode}</span>}
                         <span className="tiny muted">{l.kind === "custom" ? "عطر مخصص" : "عطر جاهز"} · ×{l.quantity}</span>
                       </span>
-                      <strong>{STAGING_PRICING_PLACEHOLDER.format(STAGING_PRICING_PLACEHOLDER.lineTotal(l))}</strong>
+                      <strong>{formatFils(lineTotalFils(l))}</strong>
                     </div>
                   </div>
                 ))}
@@ -58,7 +58,21 @@ export default function AdminOrder() {
 
               <div className="card" style={{ marginTop: 12 }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="muted small">الإجمالي</span><strong>{STAGING_PRICING_PLACEHOLDER.format(current.total)}</strong>
+                  <span className="muted small">المجموع</span><span>{formatFils(current.subtotalFils)}</span>
+                </div>
+                {current.discountFils > 0 && (
+                  <div className="row" style={{ justifyContent: "space-between" }}>
+                    <span className="muted small">خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
+                    <span data-testid="order-discount">−{formatFils(current.discountFils)}</span>
+                  </div>
+                )}
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="muted small">الشحن</span>
+                  <span>{current.shippingFils === 0 ? "مجاني" : formatFils(current.shippingFils)}</span>
+                </div>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="muted small">الإجمالي</span>
+                  <strong data-testid="order-total">{formatFils(current.totalFils)}</strong>
                 </div>
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <span className="muted small">الدفع</span>

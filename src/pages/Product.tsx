@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/lib/cart";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
-import { Async, Empty, PlaceholderPriceNote } from "@/components/states";
+import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
+import { Async, Empty } from "@/components/states";
 
 export default function Product() {
   const { handle } = useParams();
@@ -21,32 +21,34 @@ export default function Product() {
       }
     >
       {(p) => {
-        const quote = STAGING_PRICING_PLACEHOLDER.quoteReadyMade(p.price);
+        // السعر المخزَّن كما هو؛ لا سعر صالح ⇒ لا شراء ولا رقم بديل.
+        const priceFils = readyMadePriceFils(p.priceFils);
+        const buyable = p.is_available && priceFils !== null;
         return (
           <>
             <h1>{p.title}</h1>
             <div className="card">
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <span className="muted small">السعر</span>
-                <strong style={{ fontSize: 20 }}>{STAGING_PRICING_PLACEHOLDER.format(quote.unitPrice)}</strong>
+                <strong style={{ fontSize: 20 }} data-testid="product-price">{priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}</strong>
               </div>
               <p className="tiny muted" style={{ marginBottom: 0 }}>
-                {p.is_available ? `متوفر — ${p.quantity} قطعة` : "غير متوفر حالياً"}
+                {priceFils === null ? UNAVAILABLE_LABEL : p.is_available ? `متوفر — ${p.quantity} قطعة` : UNAVAILABLE_LABEL}
               </p>
-              <PlaceholderPriceNote />
             </div>
 
             {/* الشحن يُعرض هنا لا في آخر خطوة — المفاجأة السعرية سبب معروف لهجر السلة */}
             <p className="tiny muted" style={{ marginTop: 10 }}>الشحن يُحتسب في السلة · التوصيل داخل الإمارات</p>
 
             <button
-              className="btn" style={{ marginTop: 14 }} disabled={!p.is_available}
+              className="btn" style={{ marginTop: 14 }} disabled={!buyable} data-testid="add-to-cart"
               onClick={() => {
-                cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPrice: quote.unitPrice });
+                if (priceFils === null) return;
+                cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPriceFils: priceFils });
                 navigate("/cart");
               }}
             >
-              {p.is_available ? "أضف للسلة" : "غير متوفر"}
+              {buyable ? "أضف للسلة" : UNAVAILABLE_LABEL}
             </button>
           </>
         );

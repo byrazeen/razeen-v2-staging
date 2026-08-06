@@ -5,8 +5,8 @@
  */
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/lib/cart";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
-import { Empty, PlaceholderPriceNote } from "@/components/states";
+import { formatFils, lineTotalFils, BULK_THRESHOLD_ITEMS, BULK_DISCOUNT_PERCENT } from "@/lib/pricing";
+import { Empty } from "@/components/states";
 
 export default function Cart() {
   const cart = useCart();
@@ -16,8 +16,7 @@ export default function Cart() {
       action={<Link className="btn" to="/" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>ابدأ التسوّق</Link>} />;
   }
   const totals = cart.totals;
-  const hasPlaceholder = cart.lines.some((l) => l.isPlaceholderPrice);
-  const money = STAGING_PRICING_PLACEHOLDER.format;
+  const money = formatFils;
 
   return (
     <>
@@ -31,7 +30,7 @@ export default function Cart() {
                 {l.subtitle && <span className="tiny muted" style={{ display: "block" }}>{l.subtitle}</span>}
                 <span className="tiny muted">{l.kind === "custom" ? "عطر مخصص" : "عطر جاهز"}</span>
               </span>
-              <strong style={{ whiteSpace: "nowrap" }}>{money(STAGING_PRICING_PLACEHOLDER.lineTotal(l))}</strong>
+              <strong style={{ whiteSpace: "nowrap" }}>{money(lineTotalFils(l))}</strong>
             </div>
             <div className="row" style={{ marginTop: 10 }}>
               <button className="icon-btn" aria-label={`أنقص ${l.title}`} onClick={() => cart.setQuantity(l.id, l.quantity - 1)}>−</button>
@@ -44,20 +43,27 @@ export default function Cart() {
       </div>
 
       <div className="card" style={{ marginTop: 14 }}>
-        <div className="row" style={{ justifyContent: "space-between" }}><span className="muted small">المجموع</span><span>{money(totals.subtotal)}</span></div>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span className="muted small">المجموع</span><span data-testid="cart-subtotal">{money(totals.subtotalFils)}</span>
+        </div>
+        {totals.discountFils > 0 && (
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="muted small">خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
+            <span data-testid="cart-discount">−{money(totals.discountFils)}</span>
+          </div>
+        )}
         <div className="row" style={{ justifyContent: "space-between" }}>
           <span className="muted small">الشحن</span>
-          <span>{totals.shipping === 0 ? "مجاني" : money(totals.shipping)}</span>
+          <span data-testid="cart-shipping">{totals.shippingFils === 0 ? "مجاني" : money(totals.shippingFils)}</span>
         </div>
-        {totals.shipping > 0 && (
+        {!totals.bulkApplied && totals.itemCount > 0 && (
           <p className="tiny muted" style={{ margin: "4px 0 0" }}>
-            أضف {STAGING_PRICING_PLACEHOLDER.freeShippingFromItems - totals.itemCount} عطر ويصير الشحن مجاني.
+            أضف {BULK_THRESHOLD_ITEMS - totals.itemCount} عطر ويصير الشحن مجاني مع خصم {BULK_DISCOUNT_PERCENT}%.
           </p>
         )}
         <div className="row" style={{ justifyContent: "space-between", marginTop: 8 }}>
-          <strong>الإجمالي</strong><strong style={{ fontSize: 20 }} data-testid="cart-total">{money(totals.total)}</strong>
+          <strong>الإجمالي</strong><strong style={{ fontSize: 20 }} data-testid="cart-total">{money(totals.totalFils)}</strong>
         </div>
-        {hasPlaceholder && <PlaceholderPriceNote />}
       </div>
 
       <button className="btn" style={{ marginTop: 14 }} onClick={() => navigate("/checkout")}>أكمل الطلب</button>

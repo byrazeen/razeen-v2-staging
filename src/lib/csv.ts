@@ -39,7 +39,7 @@ export function ordersToCsv(orders: Order[]): string {
       perfumeName: l.title,
       size: l.size ?? "",
       quantity: l.quantity,
-      unitPrice: l.unitPrice,
+      unitPriceFils: l.unitPriceFils,
       customerNotes: l.subtitle ?? "",
       customerName: o.customer.name,
       customerPhone: o.customer.phone,

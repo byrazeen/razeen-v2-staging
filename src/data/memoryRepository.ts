@@ -12,10 +12,11 @@ import type {
 } from "@/config/customOrderContract";
 import { customOils, products } from "@/data/mock";
 import { isProductionEligible, type Order, type OrderLine, type RazeenRepository } from "@/data/repositoryContract";
+import { totals as pricingTotals } from "@/lib/pricing";
 import seed from "../../seed/seed.json";
 
 const LATENCY_MS = 140;
-const STORAGE_KEY = "razeen_v2_staging_orders";
+const STORAGE_KEY = "razeen_v2_staging_orders_v2";
 
 /** حالة الخطأ قابلة للتشغيل يدوياً: `?stgFail=1` على أي صفحة. */
 function shouldFail(): boolean {
@@ -48,18 +49,20 @@ function seedOrders(): Order[] {
       id: `ready:${it.handle}`,
       kind: "ready",
       title: products.find((p) => p.handle === it.handle)?.title ?? it.handle,
-      unitPrice: it.unit_price,
+      unitPriceFils: Math.round(it.unit_price * 100),
       quantity: it.qty,
     }));
-    const subtotal = lines.reduce((n, l) => n + l.unitPrice * l.quantity, 0);
+    // نفس الحساب المعتمد — بيانات البذرة لا تُستثنى من السياسة.
+    const t = pricingTotals(lines);
     return {
       orderNumber: o.order_number,
       createdAt: "2026-01-05T09:00:00.000Z",
       customer,
       lines,
-      subtotal,
-      shipping: 0,
-      total: subtotal,
+      subtotalFils: t.subtotalFils,
+      discountFils: t.discountFils,
+      shippingFils: t.shippingFils,
+      totalFils: t.totalFils,
       currency: "AED",
       paymentStatus: (o.payment_status === "paid" ? "paid" : "unpaid") as PaymentStatus,
       productionStatus: (o.status === "delivered" ? "ready" : o.payment_status === "paid" ? "queued" : "not_started") as ProductionStatus,
@@ -79,21 +82,21 @@ function seedOrders(): Order[] {
       kind: "custom",
       title: `${o.perfume_brand} — ${o.perfume_name}`,
       subtitle: `${o.bottle_size}${o.customer_notes ? ` · ${o.customer_notes}` : ""}`,
-      unitPrice: o.unit_price,
+      unitPriceFils: Math.round(o.unit_price * 100),
       quantity: o.quantity,
       perfumeCode: o.perfume_code,
       size: o.bottle_size,
-      isPlaceholderPrice: true,
     }];
-    const subtotal = o.unit_price * o.quantity;
+    const t = pricingTotals(lines);
     return {
       orderNumber: o.order_number,
       createdAt: "2026-01-06T11:30:00.000Z",
       customer,
       lines,
-      subtotal,
-      shipping: 0,
-      total: subtotal,
+      subtotalFils: t.subtotalFils,
+      discountFils: t.discountFils,
+      shippingFils: t.shippingFils,
+      totalFils: t.totalFils,
       currency: "AED",
       paymentStatus: o.payment_status as PaymentStatus,
       productionStatus: o.production_status as ProductionStatus,

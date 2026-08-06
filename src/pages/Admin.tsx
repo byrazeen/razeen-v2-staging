@@ -6,7 +6,7 @@
 import { Link } from "react-router-dom";
 import { repository, type Order } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { formatFils } from "@/lib/pricing";
 import { downloadCsv, ordersToCsv } from "@/lib/csv";
 import { AdminGate } from "@/components/AdminGate";
 import { Async, Empty } from "@/components/states";
@@ -42,7 +42,7 @@ export default function Admin() {
                 <Link key={o.orderNumber} to={`/admin/orders/${o.orderNumber}`} className="card">
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     <strong>{o.orderNumber}</strong>
-                    <span style={{ fontWeight: 700 }}>{STAGING_PRICING_PLACEHOLDER.format(o.total)}</span>
+                    <span style={{ fontWeight: 700 }}>{formatFils(o.totalFils)}</span>
                   </div>
                   <span className="tiny muted" style={{ display: "block" }}>
                     {o.customer.name} · {o.customer.phone} · {o.customer.address.emirate}

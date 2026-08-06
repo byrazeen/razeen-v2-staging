@@ -6,7 +6,13 @@
 import seed from "../../seed/seed.json";
 
 export interface Product {
-  handle: string; title: string; price: number; currency: string;
+  handle: string; title: string;
+  /**
+   * السعر المخزَّن للمقاس المعروض، بالفلس الصحيح — كما هو في
+   * `product_variants.price_fils`. `null` = لا سعر صالح ⇒ غير قابل للشراء.
+   */
+  priceFils: number | null;
+  currency: string;
   quantity: number; is_available: boolean; is_vip: boolean;
   /** Search aliases: how a customer might name the perfume they already know. */
   aliases?: string[];
@@ -23,7 +29,13 @@ const EXTRA: Record<string, Partial<Product>> = {
   "stg-royal-musk":  { aliases: ["مسك", "musk", "royal"],               family: "woody", intensity: 2 },
 };
 
-export const products: Product[] = (seed.products as Product[]).map((p) => ({ ...p, ...EXTRA[p.handle] }));
+/** البذرة تحمل السعر بالدرهم؛ يُحوَّل مرة واحدة إلى الفلس الصحيح ولا يُشتق بعدها. */
+type SeedProduct = Omit<Product, "priceFils"> & { price: number };
+export const products: Product[] = (seed.products as unknown as SeedProduct[]).map(({ price, ...p }) => ({
+  ...p,
+  priceFils: Number.isFinite(price) ? Math.round(price * 100) : null,
+  ...EXTRA[p.handle],
+}));
 export const customOils: CustomOil[] = seed.custom_oils as CustomOil[];
 export const BOTTLE_SIZES = ["50ml", "100ml", "200ml"] as const;
 export type BottleSize = (typeof BOTTLE_SIZES)[number];
