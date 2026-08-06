@@ -35,6 +35,26 @@ as $$
   )::uuid;
 $$;
 
+-- auth.jwt() — الادّعاءات كاملةً كما يضعها PostgREST في نفس الـGUC.
+--
+-- أُضيفت حين صار المتسوّق المجهول واقعاً: Supabase لا يعطي المجهول دوراً
+-- خاصاً، بل الدور `authenticated` نفسه، ويفرّقه بادّعاء `is_anonymous: true`
+-- وحده. فما لم تُقرأ الادّعاءات هنا كما تُقرأ هناك، تكون المجموعة تختبر
+-- عالماً لا وجود له — عالماً فيه المجهول والدائم شيء واحد.
+--
+-- `coalesce(..., '{}')` مقصود: جلسة بلا GUC (أو بقيمة فارغة) يجب أن تُنتج
+-- كائناً فارغاً لا خطأً، تماماً كما يفعل Supabase مع طلب بلا رمز.
+create or replace function auth.jwt()
+returns jsonb
+language sql
+stable
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claims', true), '')::jsonb,
+    '{}'::jsonb
+  );
+$$;
+
 -- auth.role() is referenced by some Supabase idioms; provided for parity.
 create or replace function auth.role()
 returns text
@@ -46,6 +66,20 @@ as $$
     'anon'
   );
 $$;
+
+-- auth.users — الأعمدة الثلاثة التي تعتمد عليها هجراتنا فقط.
+--
+-- هذا ليس جدول Supabase الحقيقي ولا يحاول أن يكونه؛ فيه عشرات الأعمدة لا شأن
+-- لنا بها. لكن `cleanup_stale_anonymous_users()` في 0008 تقرأ `is_anonymous`
+-- و`created_at` وتحذف بـ`id`، ودالة لا يوجد جدولها لا تُختبَر إطلاقاً — تُنشأ
+-- بنجاح (plpgsql لا يفحص الأسماء عند الإنشاء) ثم تنفجر عند أول استدعاء.
+-- وجود الجدول هنا هو ما يحوّل «الحارس مكتوب» إلى «الحارس يمنع».
+create table if not exists auth.users (
+  id           uuid primary key,
+  email        text,
+  is_anonymous boolean not null default false,
+  created_at   timestamptz not null default now()
+);
 
 grant usage on schema auth to public;
 
