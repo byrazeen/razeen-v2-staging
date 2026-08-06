@@ -7,7 +7,7 @@ import { Async, Empty } from "@/components/states";
 import { ProductRow } from "@/components/ProductRow";
 
 export default function Ready() {
-  const state = useAsync(() => repository.listProducts(), []);
+  const state = useAsync(() => repository.listProducts(), [], { cacheKey: "products" });
 
   return (
     <>

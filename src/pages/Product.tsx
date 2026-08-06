@@ -16,7 +16,7 @@ export default function Product() {
   const { handle } = useParams();
   const navigate = useNavigate();
   const cart = useCart();
-  const state = useAsync(() => repository.getProduct(handle ?? ""), [handle]);
+  const state = useAsync(() => repository.getProduct(handle ?? ""), [handle], { cacheKey: `product:${handle ?? ""}` });
 
   return (
     <Async
