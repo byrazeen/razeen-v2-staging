@@ -1,0 +1,82 @@
+# معاينة staging على GitHub Pages.
+#
+# تُبنى من `main` وتُقدَّم شيفرة هذا المستودع نفسها — لا نسخة موازية. الغرض أن
+# تكون هناك واجهة قابلة للفتح والحكم عليها قبل أن يوجد استضافة نهائية.
+#
+# القيم أدناه ليست أسراراً: `VITE_SUPABASE_PUBLISHABLE_KEY` مفتاح منشور بحكم
+# تصميمه ويُشحن داخل حزمة المتصفح في أي حال، وRLS هي الحماية لا كتمانه. ولا
+# يوجد هنا service_role ولا مفتاح دفع ولا أي سرّ.
+#
+# ولأن هذه بيئة تجريبية: `public/robots.txt` يمنع الفهرسة، وكل المحوّلات
+# الخارجية معطّلة أو وهمية، والبيانات صناعية بالكامل.
+name: Preview
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# نشرة واحدة في كل مرة؛ الأحدث يفوز ولا يُلغى وهو في منتصف النشر.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: بناء المعاينة
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # enablement: true يفعّل Pages من داخل الـrunner — واجهة الإعدادات
+      # ليست مطلوبة، والمستودع عام فالخدمة متاحة بلا تكلفة.
+      - name: تفعيل Pages
+        id: pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: بناء
+        env:
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          VITE_APP_ENV: staging
+          VITE_SUPABASE_URL: https://imejhwkgvvhojllkchmg.supabase.co
+          VITE_SUPABASE_PROJECT_ID: imejhwkgvvhojllkchmg
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_Y_vxX7YRJVZ2jPEBVFCDsA_whhMEF98
+          VITE_PAYMENT_MODE: mock
+          VITE_MESSAGING_MODE: mock
+          VITE_EMAIL_MODE: disabled
+          VITE_SHIPPING_MODE: mock
+          VITE_ANALYTICS_MODE: disabled
+        run: npm run build
+
+      # تطبيق صفحة واحدة على استضافة ساكنة: أي مسار عميق يصل كـ404، فتُقدَّم
+      # نسخة من index.html ويتولى الموجّه الباقي. بدونها ‎/admin‎ و‎/outbox‎
+      # تفتحان صفحة خطأ عند التحديث المباشر.
+      - name: صفحة رجوع للمسارات العميقة
+        run: cp dist/index.html dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: نشر المعاينة
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
