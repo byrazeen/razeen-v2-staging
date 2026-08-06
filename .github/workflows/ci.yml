@@ -37,6 +37,22 @@ jobs:
   isolation:
     name: اختبارات العزل + mutation-proof
     runs-on: ubuntu-latest
+    # المتسوّق المجهول يُثبَت على قاعدة حقيقية لا على نصّ: العزل بين متصفّحين،
+    # وبقاء الحالة بعد إعادة التحميل، ورفض التزوير بقيمة لم تتغيّر.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,6 +72,10 @@ jobs:
       # سياسة التسعير: الحدود، والفلس الصحيح، وتطابق المعروض مع المحفوظ.
       - name: اختبارات التسعير
         run: npm run test:pricing
+      # الجلسة المجهولة: متصفّحان لا يريان بعضهما، وحالة تنجو من إعادة التحميل،
+      # وسعرٌ وحالةٌ ومخزون لا يستطيع العميل تزويرها — يُقاس المخزَّن لا الخطأ.
+      - name: اختبارات الجلسة المجهولة
+        run: npm run test:anon
 
   rls:
     name: RLS وسياسات قاعدة البيانات

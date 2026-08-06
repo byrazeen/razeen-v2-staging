@@ -47,13 +47,56 @@ export type OrderDraft = Omit<
   "orderNumber" | "createdAt" | "paymentStatus" | "productionStatus" | "shippingStatus"
 >;
 
+/**
+ * بندٌ في طلبٍ يُنشأ — **بلا سعر، عمداً**.
+ *
+ * هذا الشكل هو الفارق كله بين التصميم السابق وهذا: المتصفّح يقول «ماذا» —
+ * أي عطر، أي مقاس، كم — ولا يقول «بكم». السعر يُحسب في `place_order` من
+ * القاعدة، فلا يوجد حقل يستطيع العميل أن يكذب فيه أصلاً. وحدة التسعير في
+ * `@/lib/pricing` تبقى للعرض في السلة وحده.
+ */
+export interface PlaceOrderItem {
+  kind: "ready" | "custom";
+  /** الجاهز: مقبض المنتج. يُترجَم إلى `variant_id` في طبقة البيانات. */
+  handle?: string;
+  /** المخصص: رمز الزيت في الكتالوج. */
+  catalogCode?: string;
+  /** المخصص: العطر الذي كتبه العميل بنفسه حين لا يجد رمزاً. */
+  freeText?: string;
+  size?: string;
+  quantity: number;
+  notes?: string;
+}
+
+export interface PlaceOrderRequest {
+  items: PlaceOrderItem[];
+  customer: { name: string; phone: string; address: StructuredAddress };
+  /**
+   * مفتاح المحاولة الواحدة. يُولَّد مرة عند بدء الدفع ويُعاد استعماله عند
+   * إعادة الإرسال — فالنقرة الثانية تُعيد الطلب الأول ولا تُنشئ ثانياً.
+   */
+  idempotencyKey: string;
+  /** نتيجة الدفع المحاكاة في staging. */
+  outcome: "success" | "failed";
+}
+
 export interface RazeenRepository {
   listProducts(): Promise<Product[]>;
   getProduct(handle: string): Promise<Product | null>;
   listOils(): Promise<CustomOil[]>;
   listOrders(): Promise<Order[]>;
   getOrder(orderNumber: string): Promise<Order | null>;
-  createOrder(draft: OrderDraft): Promise<Order>;
+  /**
+   * المسار الوحيد لإنشاء طلب. المجاميع في الطلب العائد هي مجاميع القاعدة،
+   * وهي وحدها ما يُعرض في شاشة التأكيد.
+   */
+  placeOrder(request: PlaceOrderRequest): Promise<Order>;
+  /**
+   * السلة الخادمية. `loadCart` هي **المصدر** — ما يعود منها يغلب أي نسخة
+   * محلية، بلا استثناء ولا دمج.
+   */
+  loadCart(): Promise<OrderLine[]>;
+  saveCart(lines: OrderLine[]): Promise<void>;
   setPaymentStatus(orderNumber: string, status: PaymentStatus): Promise<Order>;
   setProductionStatus(orderNumber: string, status: ProductionStatus): Promise<Order>;
   setShippingStatus(orderNumber: string, status: ShippingStatus, trackingNumber?: string): Promise<Order>;

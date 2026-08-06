@@ -43,17 +43,29 @@ console.log("\n— الشبكة المعلّقة تنتهي إلى خطأ —");
 check("مهلة القراءة معرَّفة في useAsync", /READ_TIMEOUT_MS = 10_000/.test(useAsync) && /Read timed out after/.test(useAsync));
 check("والطلب نفسه يُجهَض بـAbortSignal.timeout", /AbortSignal\.timeout\(REQUEST_TIMEOUT_MS\)/.test(client));
 
-console.log("\n— الحزمة: PostgREST وحده —");
+console.log("\n— الحزمة: PostgREST وauth-js بالاسم، لا المظلّة —");
+//
+// تغيّر بند واحد هنا عن الجولة السابقة، ويستحق أن يُقال لا أن يُمرَّر بصمت:
+// `.rpc(` صار مطلوباً. مسار الطلب كله انتقل إلى `place_order` في القاعدة،
+// وهو استدعاء RPC بحكم تعريفه — فمنعُه اليوم يعني منعَ الشيء الذي جُلبت
+// الجولة لأجله. وبقيت المظلّة ممنوعة كما كانت: ما دخل الحزمة هو auth-js
+// وحدها، بالاسم، لأن `auth.uid()` شرطٌ في كل سياسة على مسار الطلب.
 check("لا مظلّة @supabase/supabase-js في الاعتماديات", !("@supabase/supabase-js" in (pkg.dependencies ?? {})));
 check("و@supabase/postgrest-js معلَن", "@supabase/postgrest-js" in (pkg.dependencies ?? {}));
+check("و@supabase/auth-js معلَن بالاسم لا عبر المظلّة", "@supabase/auth-js" in (pkg.dependencies ?? {}));
 // الفحص على الشيفرة لا على التعليق: الملفات تشرح ما حُذف ولماذا بالاسم.
 const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-const srcFiles = ["src/lib/supabaseClient.ts", "src/data/supabaseRepository.ts", "src/data/repositorySource.ts"]
-  .map((f) => stripComments(read(f)));
-check("ولا ملف يستورد المظلّة", srcFiles.every((f) => !/@supabase\/supabase-js/.test(f)));
-check("ولا استدعاء auth باقٍ", srcFiles.every((f) => !/\.auth\./.test(f)));
-check("ولا realtime ولا storage ولا rpc",
-  srcFiles.every((f) => !/\.channel\(|realtime|storage\.|functions\.invoke|\.rpc\(/.test(f)));
+const dataFiles = ["src/lib/supabaseClient.ts", "src/data/supabaseRepository.ts", "src/data/repositorySource.ts"];
+const srcFiles = dataFiles.map((f) => stripComments(read(f)));
+const anonSession = stripComments(read("src/lib/anonSession.ts"));
+check("ولا ملف يستورد المظلّة",
+  [...srcFiles, anonSession].every((f) => !/@supabase\/supabase-js/.test(f)));
+check("ولا realtime ولا storage ولا functions",
+  [...srcFiles, anonSession].every((f) => !/\.channel\(|realtime|storage\.|functions\.invoke/.test(f)));
+check("والمصادقة معزولة في ملف واحد", /@supabase\/auth-js/.test(anonSession)
+  && srcFiles.every((f) => !/@supabase\/auth-js/.test(f)));
+check("والرمز يُركَّب على كل طلب لا مرة واحدة",
+  /currentAccessToken\(\)/.test(read("src/lib/supabaseClient.ts")));
 
 console.log("\n— طلب واحد لكل قراءة فهرس، وذاكرة للرجوع —");
 check("الذاكرة توحّد الطلبات الجارية", /const inflight = new Map/.test(useAsync) && /inflight\.has\(cacheKey\)/.test(useAsync));
