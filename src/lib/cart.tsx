@@ -4,7 +4,7 @@
  * the custom flow its coupons, its shipping, its persistence and its recovery.
  */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { STAGING_PRICING_PLACEHOLDER, type Totals } from "@/lib/pricing";
+import { totals as pricingTotals, isPurchasable, type Totals } from "@/lib/pricing";
 import type { OrderLine } from "@/data/repository";
 
 /** سطر السلة هو نفسه سطر الطلب — شكل واحد من السلة إلى لوحة الإدارة. */
@@ -17,15 +17,14 @@ interface CartApi {
   setQuantity(id: string, quantity: number): void;
   clear(): void;
   count: number;
-  subtotal: number;
-  /** المجاميع كلها من مصدر التسعير الوحيد. */
+  /** المجاميع كلها من مصدر التسعير الوحيد — السلة لا تحسب رقماً بنفسها. */
   totals: Totals;
 }
 
 const Ctx = createContext<CartApi | null>(null);
 
 /** السلة تبقى بعد إعادة التحميل — فقدان السلة عند التحديث سبب مباشر لهجر الطلب. */
-const STORAGE_KEY = "razeen_v2_staging_cart";
+const STORAGE_KEY = "razeen_v2_staging_cart_v2";
 
 function restore(): CartLine[] {
   if (typeof window === "undefined") return [];
@@ -44,14 +43,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<CartApi>(() => ({
     lines,
-    add: (line) =>
+    // سطر بلا سعر صالح لا يدخل السلة إطلاقاً — القاعدة 2 من سياسة التسعير.
+    add: (line) => {
+      if (!isPurchasable(line.unitPriceFils)) return;
       setLines((prev) => {
         const existing = prev.find((l) => l.id === line.id);
         if (existing) {
           return prev.map((l) => (l.id === line.id ? { ...l, quantity: l.quantity + (line.quantity ?? 1) } : l));
         }
         return [...prev, { ...line, quantity: line.quantity ?? 1 }];
-      }),
+      });
+    },
     remove: (id) => setLines((prev) => prev.filter((l) => l.id !== id)),
     setQuantity: (id, quantity) =>
       setLines((prev) =>
@@ -59,8 +61,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ),
     clear: () => setLines([]),
     count: lines.reduce((n, l) => n + l.quantity, 0),
-    subtotal: STAGING_PRICING_PLACEHOLDER.totals(lines).subtotal,
-    totals: STAGING_PRICING_PLACEHOLDER.totals(lines),
+    totals: pricingTotals(lines),
   }), [lines]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

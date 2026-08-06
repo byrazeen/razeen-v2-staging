@@ -1,7 +1,6 @@
 /** Loading, empty and error, written once so no screen invents its own. */
 import type { ReactNode } from "react";
 import type { AsyncState } from "@/lib/useAsync";
-import { PLACEHOLDER_PRICE_NOTE } from "@/lib/pricing";
 
 export function Loading({ label = "جاري التحميل…" }: { label?: string }) {
   return (
@@ -52,18 +51,6 @@ export function Async<T>({
   const data = state.data as NonNullable<T>;
   if (isEmpty?.(data)) return <>{empty ?? <Empty title="لا توجد بيانات" />}</>;
   return <>{children(data)}</>;
-}
-
-/**
- * تنبيه السعر التجريبي. يظهر عند كل سعر — وخصوصاً في إتمام الطلب —
- * كي لا يُقرأ أي رقم هنا على أنه تسعير معتمد.
- */
-export function PlaceholderPriceNote({ inline = false }: { inline?: boolean }) {
-  return (
-    <p className="placeholder-price" style={{ display: inline ? "inline-block" : "block", marginTop: 8 }}>
-      ⚠️ {PLACEHOLDER_PRICE_NOTE}
-    </p>
-  );
 }
 
 /** رسالة تحقّق تحت حقل. */

@@ -17,12 +17,12 @@ export interface OrderLine {
   kind: "ready" | "custom";
   title: string;
   subtitle?: string;
-  unitPrice: number;
+  /** سعر الوحدة بالفلس الصحيح. لا يدخل السلة سطر بلا سعر صالح (> 0). */
+  unitPriceFils: number;
   quantity: number;
   /** كود الزيت للعطر المخصص — الحقل الذي يطلب به المشغل فعلياً. */
   perfumeCode?: string;
   size?: string;
-  isPlaceholderPrice?: boolean;
 }
 
 export interface Order {
@@ -30,9 +30,11 @@ export interface Order {
   createdAt: string;
   customer: { name: string; phone: string; address: StructuredAddress };
   lines: OrderLine[];
-  subtotal: number;
-  shipping: number;
-  total: number;
+  /** كل المبالغ بالفلس الصحيح، كما في القاعدة تماماً. */
+  subtotalFils: number;
+  discountFils: number;
+  shippingFils: number;
+  totalFils: number;
   currency: "AED";
   paymentStatus: PaymentStatus;
   productionStatus: ProductionStatus;

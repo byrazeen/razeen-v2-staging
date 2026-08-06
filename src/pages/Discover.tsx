@@ -11,8 +11,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/lib/cart";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
-import { Async, Empty, PlaceholderPriceNote } from "@/components/states";
+import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL, FILS_PER_AED } from "@/lib/pricing";
+import { Async, Empty } from "@/components/states";
 
 const QUESTIONS = [
   { key: "family", label: "أي جو تحب؟", options: [
@@ -35,12 +35,12 @@ export default function Discover() {
   const picks = useMemo(() => {
     if (!done || !state.data) return [];
     return state.data
-      .filter((p) => p.is_available) // لا نرشّح ما لا يمكن شراؤه
+      .filter((p) => p.is_available && readyMadePriceFils(p.priceFils) !== null) // لا نرشّح ما لا يمكن شراؤه
       .map((p) => {
         let score = 0; const why: string[] = [];
         if (answers.family && p.family === answers.family) { score += 3; why.push("يطابق الجو اللي اخترته"); }
         if (answers.intensity && String(p.intensity) === answers.intensity) { score += 2; why.push("بنفس القوة اللي تحبها"); }
-        if (answers.budget && p.price <= Number(answers.budget)) { score += 1; why.push("داخل ميزانيتك"); }
+        if (answers.budget && (p.priceFils ?? Infinity) <= Number(answers.budget) * FILS_PER_AED) { score += 1; why.push("داخل ميزانيتك"); }
         if (why.length === 0) why.push("متوفر الآن — ترشيح عام لأنك تخطّيت الأسئلة");
         return { p, score, why };
       })
@@ -82,26 +82,26 @@ export default function Discover() {
           ) : (
             <div className="grid">
               {picks.map(({ p, why }) => {
-                const quote = STAGING_PRICING_PLACEHOLDER.quoteReadyMade(p.price);
+                const priceFils = readyMadePriceFils(p.priceFils);
                 return (
                   <div key={p.handle} className="card">
                     <div className="row" style={{ justifyContent: "space-between" }}>
                       <Link to={`/product/${p.handle}`}><strong>{p.title}</strong></Link>
-                      <span style={{ fontWeight: 700 }}>{STAGING_PRICING_PLACEHOLDER.format(quote.unitPrice)}</span>
+                      <span style={{ fontWeight: 700 }}>{priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}</span>
                     </div>
                     {/* السبب معروض دائماً — الترشيح بلا تعليل لا يُقنع أحداً */}
                     <p className="tiny muted" style={{ margin: "6px 0 0" }}>ليش رشّحناه: {why.join(" · ")}</p>
-                    <button className="btn" style={{ marginTop: 10 }}
+                    <button className="btn" style={{ marginTop: 10 }} disabled={priceFils === null}
                       onClick={() => {
-                        cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPrice: quote.unitPrice });
+                        if (priceFils === null) return;
+                        cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPriceFils: priceFils });
                         navigate("/cart");
                       }}>
-                      أضف للسلة
+                      {priceFils === null ? UNAVAILABLE_LABEL : "أضف للسلة"}
                     </button>
                   </div>
                 );
               })}
-              <PlaceholderPriceNote />
             </div>
           )
         }

@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { search } from "@/lib/search";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
 
 export default function Search() {
@@ -40,19 +40,22 @@ export default function Search() {
             ) : (
               <div className="grid">
                 <p className="tiny muted">{results.length} نتيجة</p>
-                {results.map((p) => (
-                  <Link key={p.handle} to={`/product/${p.handle}`} className="card row" style={{ justifyContent: "space-between" }}>
-                    <span>
-                      <strong>{p.title}</strong>
-                      <span className="tiny muted" style={{ display: "block" }}>
-                        {p.is_available ? `متوفر — ${p.quantity} قطعة` : "غير متوفر حالياً"}
+                {results.map((p) => {
+                  const priceFils = readyMadePriceFils(p.priceFils);
+                  return (
+                    <Link key={p.handle} to={`/product/${p.handle}`} className="card row" style={{ justifyContent: "space-between" }}>
+                      <span>
+                        <strong>{p.title}</strong>
+                        <span className="tiny muted" style={{ display: "block" }}>
+                          {p.is_available ? `متوفر — ${p.quantity} قطعة` : UNAVAILABLE_LABEL}
+                        </span>
                       </span>
-                    </span>
-                    <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {STAGING_PRICING_PLACEHOLDER.format(STAGING_PRICING_PLACEHOLDER.quoteReadyMade(p.price).unitPrice)}
-                    </span>
-                  </Link>
-                ))}
+                      <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+                        {priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             )
           }

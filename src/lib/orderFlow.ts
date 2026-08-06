@@ -11,7 +11,8 @@ import { resolveAdapters } from "@/adapters";
 import { stagingEnv, stagingHost } from "@/config/stagingEnv";
 import type { StructuredAddress } from "@/config/customOrderContract";
 import { repository, type Order, type OrderLine } from "@/data/repository";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { buildOrderDraft } from "@/lib/orderDraft";
+import { formatFils, lineTotalFils } from "@/lib/pricing";
 
 const adapters = resolveAdapters(stagingEnv, stagingHost);
 
@@ -28,37 +29,29 @@ export interface CheckoutResult {
   message: string;
 }
 
-const money = (n: number) => STAGING_PRICING_PLACEHOLDER.format(n);
+const money = formatFils;
 
 /**
  * ينفّذ الطلب كاملاً. لا يرمي عند فشل الدفع — الفشل نتيجة صالحة يجب أن تُعرض.
  */
 export async function placeOrder(lines: OrderLine[], customer: CheckoutCustomer): Promise<CheckoutResult> {
-  const totals = STAGING_PRICING_PLACEHOLDER.totals(lines);
+  // نفس الحساب الذي عُرض للعميل بالضبط — لا إعادة تسعير عند الإنشاء.
+  const order = await repository.createOrder(buildOrderDraft(lines, customer));
 
-  const order = await repository.createOrder({
-    customer,
-    lines,
-    subtotal: totals.subtotal,
-    shipping: totals.shipping,
-    total: totals.total,
-    currency: "AED",
-  });
-
-  adapters.analytics.track("checkout_started", { orderNumber: order.orderNumber, total: order.total });
+  adapters.analytics.track("checkout_started", { orderNumber: order.orderNumber, totalFils: order.totalFils });
 
   // تأكيد استلام الطلب يُرسل دائماً — حتى لو فشل الدفع بعد قليل.
   await adapters.messaging.send({
     to: customer.phone,
     body:
       `مرحباً ${customer.name}، استلمنا طلبك ${order.orderNumber}.\n` +
-      `الإجمالي ${money(order.total)} (سعر تجريبي).\n` +
+      `الإجمالي ${money(order.totalFils)}.\n` +
       `الحالة: بانتظار الدفع.`,
   });
 
   const intent = await adapters.payment.createIntent({
     orderNumber: order.orderNumber,
-    amountFils: order.total * 100,
+    amountFils: order.totalFils,
   });
   if (!intent.ok || !intent.data) {
     return { order, paid: false, message: "تعذّرت تهيئة الدفع — الطلب محفوظ غير مدفوع." };
@@ -79,16 +72,17 @@ export async function placeOrder(lines: OrderLine[], customer: CheckoutCustomer)
   }
 
   const paidOrder = await repository.setPaymentStatus(order.orderNumber, "paid");
-  adapters.analytics.track("purchase", { orderNumber: order.orderNumber, total: paidOrder.total });
+  adapters.analytics.track("purchase", { orderNumber: order.orderNumber, totalFils: paidOrder.totalFils });
 
   await adapters.email.send({
     to: `${customer.phone}@staging.invalid`,
     subject: `إيصال الدفع — طلب ${paidOrder.orderNumber}`,
     body:
       `إيصال تجريبي.\nالطلب: ${paidOrder.orderNumber}\n` +
-      paidOrder.lines.map((l) => `• ${l.title} ×${l.quantity} — ${money(l.unitPrice * l.quantity)}`).join("\n") +
-      `\nالشحن: ${money(paidOrder.shipping)}\nالإجمالي: ${money(paidOrder.total)}\n` +
-      `الأسعار تجريبية وغير معتمدة.`,
+      paidOrder.lines.map((l) => `• ${l.title} ×${l.quantity} — ${money(lineTotalFils(l))}`).join("\n") +
+      (paidOrder.discountFils > 0 ? `\nخصم الكمية: −${money(paidOrder.discountFils)}` : "") +
+      `\nالشحن: ${paidOrder.shippingFils === 0 ? "مجاني" : money(paidOrder.shippingFils)}` +
+      `\nالإجمالي: ${money(paidOrder.totalFils)}\n`,
   });
 
   await adapters.messaging.send({

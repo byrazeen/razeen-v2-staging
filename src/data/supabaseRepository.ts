@@ -22,11 +22,12 @@ import type { PaymentStatus, ProductionStatus, ShippingStatus, StructuredAddress
 import type { CustomOil, Product } from "@/data/mock";
 import type { Order, OrderDraft, OrderLine, RazeenRepository } from "@/data/repositoryContract";
 import { isProductionEligible } from "@/data/repositoryContract";
+import { lineTotalFils, readyMadePriceFils } from "@/lib/pricing";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const FILS_PER_AED = 100;
+/** الفلس هو وحدة الحساب في التطبيق كما في القاعدة — لا تحويل ولا تقريب للمال. */
 const toAed = (fils: number): number => Math.round(fils / FILS_PER_AED);
-const toFils = (aed: number): number => Math.round(aed * FILS_PER_AED);
 
 /** PostgREST يعيد العلاقة الواحدة ككائن أو كمصفوفة حسب استنتاجه. نطبّعها. */
 function one<T>(value: T | T[] | null | undefined): T | null {
@@ -46,7 +47,7 @@ interface ProductRow {
   family: Product["family"] | null; intensity: 1 | 2 | 3 | null;
   base_price_fils: number; currency: string; is_available: boolean; is_vip: boolean;
   aliases: string[] | null;
-  product_variants?: Array<{ stock_qty: number; is_active: boolean }>;
+  product_variants?: Array<{ stock_qty: number; is_active: boolean; price_fils: number | null }>;
 }
 
 interface CatalogRow {
@@ -78,14 +79,14 @@ export interface StagingOutboxRow {
 
 interface OrderRow {
   id: string; order_number: string; status: string; payment_status: string;
-  subtotal_fils: number; shipping_fils: number; total_fils: number; currency: string;
+  subtotal_fils: number; shipping_fils: number; discount_fils: number; total_fils: number; currency: string;
   shipping_address: Partial<StructuredAddress> | null;
   placed_at: string; created_at: string;
   customers: { full_name: string; phone: string; emirate: string | null; area: string | null;
     street: string | null; building: string | null; flat: string | null } | null;
   order_items: Array<{
     id: string; variant_id: string | null; custom_request_id: string | null;
-    title_snapshot: string; quantity: number; unit_price_fils: number;
+    title_snapshot: string; quantity: number; unit_price_fils: number; line_total_fils: number;
     product_variants: { sku: string; bottle_size: string } | null;
     custom_perfume_requests: { bottle_size: string; customer_notes: string | null;
       perfume_catalog: { code: string } | null } | null;
@@ -95,11 +96,11 @@ interface OrderRow {
 }
 
 const ORDER_SELECT = `
-  id, order_number, status, payment_status, subtotal_fils, shipping_fils, total_fils,
+  id, order_number, status, payment_status, subtotal_fils, shipping_fils, discount_fils, total_fils,
   currency, shipping_address, placed_at, created_at,
   customers ( full_name, phone, emirate, area, street, building, flat ),
   order_items (
-    id, variant_id, custom_request_id, title_snapshot, quantity, unit_price_fils,
+    id, variant_id, custom_request_id, title_snapshot, quantity, unit_price_fils, line_total_fils,
     product_variants ( sku, bottle_size ),
     custom_perfume_requests ( bottle_size, customer_notes, perfume_catalog ( code ) )
   ),
@@ -137,7 +138,14 @@ function mapProduct(row: ProductRow): Product {
   return {
     handle: row.handle,
     title: row.title_ar,
-    price: toAed(row.base_price_fils),
+    // السعر المعروض = سعر المقاس المخزَّن (أرخص مقاس فعّال بسعر صالح). لا اشتقاق.
+    priceFils: readyMadePriceFils(
+      variants
+        .filter((v) => v.is_active)
+        .map((v) => v.price_fils)
+        .filter((n): n is number => typeof n === "number" && n > 0)
+        .sort((a, b) => a - b)[0] ?? null
+    ),
     currency: row.currency,
     // الكمية المعروضة = مجموع مخزون المقاسات الفعّالة.
     quantity: variants.filter((v) => v.is_active).reduce((n, v) => n + v.stock_qty, 0),
@@ -168,11 +176,10 @@ function mapOrder(row: OrderRow): Order {
       subtitle: custom
         ? `${custom.bottle_size}${custom.customer_notes ? ` · ${custom.customer_notes}` : ""}`
         : undefined,
-      unitPrice: toAed(item.unit_price_fils),
+      unitPriceFils: item.unit_price_fils,
       quantity: item.quantity,
       perfumeCode: custom?.perfume_catalog?.code ?? undefined,
       size: custom?.bottle_size ?? item.product_variants?.bottle_size ?? undefined,
-      isPlaceholderPrice: true,
     };
   });
 
@@ -197,9 +204,10 @@ function mapOrder(row: OrderRow): Order {
       },
     },
     lines,
-    subtotal: toAed(row.subtotal_fils),
-    shipping: toAed(row.shipping_fils),
-    total: toAed(row.total_fils),
+    subtotalFils: row.subtotal_fils,
+    discountFils: row.discount_fils ?? 0,
+    shippingFils: row.shipping_fils,
+    totalFils: row.total_fils,
     currency: "AED",
     paymentStatus: PAYMENT_FROM_DB[row.payment_status] ?? "unpaid",
     productionStatus: queue ? PRODUCTION_FROM_QUEUE[queue.status] ?? "queued" : "not_started",
@@ -267,7 +275,7 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
     async listProducts(): Promise<Product[]> {
       const { data, error } = await client
         .from("products")
-        .select("handle, title_ar, title_en, family, intensity, base_price_fils, currency, is_available, is_vip, aliases, product_variants ( stock_qty, is_active )")
+        .select("handle, title_ar, title_en, family, intensity, base_price_fils, currency, is_available, is_vip, aliases, product_variants ( stock_qty, is_active, price_fils )")
         .order("handle");
       fail("products", error);
       return ((data ?? []) as unknown as ProductRow[]).map(mapProduct);
@@ -276,7 +284,7 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
     async getProduct(handle: string): Promise<Product | null> {
       const { data, error } = await client
         .from("products")
-        .select("handle, title_ar, title_en, family, intensity, base_price_fils, currency, is_available, is_vip, aliases, product_variants ( stock_qty, is_active )")
+        .select("handle, title_ar, title_en, family, intensity, base_price_fils, currency, is_available, is_vip, aliases, product_variants ( stock_qty, is_active, price_fils )")
         .eq("handle", handle)
         .maybeSingle();
       fail("product", error);
@@ -360,9 +368,11 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
         // كل طلب يبدأ معلّقاً وغير مدفوع. الدفع وحده يرقّيه.
         status: "pending",
         payment_status: "unpaid",
-        subtotal_fils: toFils(draft.subtotal),
-        shipping_fils: toFils(draft.shipping),
-        total_fils: toFils(draft.total),
+        // تُحفظ كما عُرضت للعميل بالضبط — بلا إعادة حساب على الخادم.
+        subtotal_fils: draft.subtotalFils,
+        shipping_fils: draft.shippingFils,
+        discount_fils: draft.discountFils,
+        total_fils: draft.totalFils,
         currency: "AED",
         shipping_address: draft.customer.address,
       }).select("id").single();
@@ -377,8 +387,8 @@ export function createSupabaseRepository({ client, sessionScopedFallback }: Supa
             custom_request_id: null,
             title_snapshot: line.title,
             quantity: line.quantity,
-            unit_price_fils: toFils(line.unitPrice),
-            line_total_fils: toFils(line.unitPrice * line.quantity),
+            unit_price_fils: line.unitPriceFils,
+            line_total_fils: lineTotalFils(line),
           }))
         );
         fail("order_items insert", items.error);

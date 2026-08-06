@@ -14,9 +14,9 @@ import { BOTTLE_SIZES, type BottleSize, type CustomOil } from "@/data/mock";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { search } from "@/lib/search";
-import { STAGING_PRICING_PLACEHOLDER } from "@/lib/pricing";
+import { customPriceFils, formatFils, lineTotalFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
-import { Async, PlaceholderPriceNote } from "@/components/states";
+import { Async } from "@/components/states";
 
 const asSearchable = (o: CustomOil) => ({ title: `${o.brand} ${o.name}`, aliases: [o.name, o.brand, o.code] });
 
@@ -41,9 +41,10 @@ export default function CustomPerfume() {
     return search(q, oils.map((o) => ({ ...o, ...asSearchable(o) })), 8) as unknown as CustomOil[];
   }, [q, oils]);
 
-  const quote = picked
-    ? STAGING_PRICING_PLACEHOLDER.quoteCustom(picked.kilo_price, size)
-    : STAGING_PRICING_PLACEHOLDER.quoteUnlistedCustom();
+  /** 50ml = 280 درهم، 100ml = 320 درهم. أي مقاس آخر غير قابل للشراء. */
+  const sizePriceFils = customPriceFils(size);
+  /** العطر غير المدرج يحتاج تأكيد توفر قبل التسعير — لا يُسعَّر ولا يُضاف. */
+  const unitPriceFils = picked ? sizePriceFils : null;
   const requestedName = picked ? `${picked.brand} — ${picked.name}` : freeText.trim();
   const chosen = Boolean(picked || (unlisted && freeText.trim()));
   const step = chosen ? 2 : 1;
@@ -99,9 +100,16 @@ export default function CustomPerfume() {
 
                 <h2>الحجم</h2>
                 <div className="grid two">
-                  {BOTTLE_SIZES.map((s) => (
-                    <button key={s} className={`btn ${size === s ? "" : "ghost"}`} onClick={() => setSize(s)}>{s}</button>
-                  ))}
+                  {BOTTLE_SIZES.map((s) => {
+                    const available = customPriceFils(s) !== null;
+                    return (
+                      <button key={s} className={`btn ${size === s ? "" : "ghost"}`} disabled={!available}
+                        title={available ? undefined : UNAVAILABLE_LABEL}
+                        onClick={() => setSize(s)}>
+                        {s}{available ? "" : ` — ${UNAVAILABLE_LABEL}`}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <h2>الكمية</h2>
@@ -118,28 +126,30 @@ export default function CustomPerfume() {
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     <span className="muted small">السعر</span>
                     <strong style={{ fontSize: 20 }} data-testid="custom-price">
-                      {picked ? STAGING_PRICING_PLACEHOLDER.format(quote.unitPrice * quantity) : "يُسعَّر بعد التأكيد"}
+                      {unitPriceFils === null
+                        ? (picked ? UNAVAILABLE_LABEL : "يُسعَّر بعد التأكيد")
+                        : formatFils(lineTotalFils({ unitPriceFils, quantity }))}
                     </strong>
                   </div>
-                  <PlaceholderPriceNote />
                 </div>
 
-                <button className="btn" style={{ marginTop: 14 }} disabled={!requestedName}
+                <button className="btn" style={{ marginTop: 14 }} disabled={!requestedName || unitPriceFils === null}
+                  data-testid="custom-add"
                   onClick={() => {
+                    if (unitPriceFils === null) return;
                     cart.add({
                       id: `custom:${picked?.code ?? "unlisted"}:${size}:${requestedName}`,
                       kind: "custom",
                       title: requestedName,
                       subtitle: `${size}${notes ? ` · ${notes}` : ""}`,
-                      unitPrice: quote.unitPrice,
+                      unitPriceFils,
                       quantity,
                       perfumeCode: picked?.code,
                       size,
-                      isPlaceholderPrice: true,
                     });
                     navigate("/cart");
                   }}>
-                  أضف للسلة
+                  {unitPriceFils === null ? UNAVAILABLE_LABEL : "أضف للسلة"}
                 </button>
               </>
             )}
