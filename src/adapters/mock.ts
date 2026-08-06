@@ -3,6 +3,7 @@
  * plausible shape, so the whole order journey is exercisable end to end without
  * a dirham moving or a customer being messaged.
  */
+import { formatFils } from "../lib/pricing";
 import type {
   AdapterMode, AdapterResult, AnalyticsAdapter, EmailAdapter,
   MessagingAdapter, PaymentAdapter, PaymentIntent, ShippingAdapter,
@@ -78,7 +79,7 @@ export const mockPaymentAdapter: PaymentAdapter = {
     record({
       adapter: "payment", method: "createIntent", channel: "payment", to: orderNumber,
       payload: { orderNumber, amountFils },
-      body: `تهيئة دفع تجريبي للطلب ${orderNumber} بمبلغ ${amountFils / 100} د.إ — لم يُخصم شيء.`,
+      body: `تهيئة دفع تجريبي للطلب ${orderNumber} بمبلغ ${formatFils(amountFils)} — لم يُخصم شيء.`,
     });
     const intent: PaymentIntent = {
       id: `stg_intent_${orderNumber}`,

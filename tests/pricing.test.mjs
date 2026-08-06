@@ -218,8 +218,14 @@ const walk = (dir) => {
     else if (/\.tsx?$/.test(p)) sourceFiles.push(p);
   }
 };
-walk(join(root, "src/pages"));
-walk(join(root, "src/components"));
+// يمسح `src` كاملاً لا الصفحات والمكوّنات وحدها.
+//
+// كان المسح محصوراً فيهما، فمرّت مخالفة حقيقية خارجهما: `adapters/mock.ts`
+// كان يكتب `${amountFils / 100}` فيعرض «853.1 د.إ» بينما تعرض بقية الأسطح
+// «853.10 د.إ» — والمجموعة خضراء. المخالفة صغيرة الأثر، والفجوة ليست كذلك:
+// المحوّلات وطبقة البيانات وسلّة الشراء كانت كلها خارج المسح، فخصمٌ مكتوب
+// بخط اليد في أيٍّ منها كان يُشحن أخضر.
+walk(join(root, "src"));
 
 const PRICING_MODULE = join(root, "src/lib/pricing.ts");
 /** حساب على مبلغ: أي عملية حسابية يشارك فيها معرّف يحمل Fils/price. */
@@ -228,8 +234,11 @@ const MONEY_ARITHMETIC = [
   /[-+*/%]\s*[A-Za-z_$][\w$.]*(?:Fils|Price|price)\b/,
   /\b(?:0\.05|0\.95|\/\s*100|\*\s*100)\b/,
 ];
+// وحدة التسعير وحدها يحق لها حساب المال — وهي المقصد كله. أي ملف آخر يفعلها
+// فقد صار مصدر سعر ثانياً، وهو بالضبط ما يمنعه هذا الفحص.
+const scanned = sourceFiles.filter((f) => f !== PRICING_MODULE);
 const offenders = [];
-for (const file of sourceFiles) {
+for (const file of scanned) {
   const source = readFileSync(file, "utf8");
   source.split("\n").forEach((line, i) => {
     const code = line.replace(/\/\/.*$/, "");
@@ -238,11 +247,11 @@ for (const file of sourceFiles) {
   });
 }
 if (offenders.length > 0) offenders.forEach((o) => console.log("     ↳ " + o));
-check("لا صفحة ولا مكوّن يجري حساباً على مبلغ", offenders.length === 0);
+check("لا ملف خارج وحدة التسعير يجري حساباً على مبلغ", offenders.length === 0);
 
 // الصفحات لا تعرّف أرقام السياسة عندها؛ الأرقام كلها من وحدة التسعير.
 const policyLiterals = [/\b2500\b/, /\b28000\b/, /\b32000\b/, /BULK_THRESHOLD_ITEMS\s*=/, /SHIPPING_FLAT_FILS\s*=/];
-const literalOffenders = sourceFiles.filter((f) => {
+const literalOffenders = scanned.filter((f) => {
   const source = readFileSync(f, "utf8");
   return policyLiterals.some((re) => re.test(source));
 });
@@ -268,6 +277,30 @@ for (const file of [...allFiles, join(root, "README.md")]) {
 if (leftovers.length > 0) leftovers.forEach((f) => console.log("     ↳ " + f));
 check("لا أثر للمُسعِّر التجريبي القديم", leftovers.length === 0);
 check("وحدة التسعير المعتمدة موجودة", readFileSync(PRICING_MODULE, "utf8").includes("roundHalfUpFils"));
+
+// --- بيانات البذرة تخضع للسياسة أيضاً ---
+//
+// وُجد أن بذرة التطوير تحمل عطراً مخصصاً 100ml بسعر 300 درهم بينما السياسة 320،
+// وبذرة SQL تحمل 300 و240. لا عميل يستطيع إنتاج هذه الأرقام عبر الشراء، لكنها
+// تظهر لموظف التشغيل في قائمة التصنيع كأنها سعر معتمد. رقمٌ خاطئ يراه موظف
+// خطأٌ ولو لم يأتِ من عملية بيع.
+console.log("\n— بيانات البذرة تطابق السياسة —");
+const seedJson = JSON.parse(readFileSync(join(root, "seed/seed.json"), "utf8"));
+const seedCustomBad = (seedJson.custom_orders ?? []).filter(
+  (o) => o.unit_price * 100 !== customPriceFils(o.bottle_size)
+);
+if (seedCustomBad.length > 0) {
+  seedCustomBad.forEach((o) =>
+    console.log(`     ↳ ${o.order_number}: ${o.bottle_size} بسعر ${o.unit_price} والسياسة ${customPriceFils(o.bottle_size) / 100}`)
+  );
+}
+check("seed.json: كل عطر مخصص بسعر السياسة", seedCustomBad.length === 0);
+
+const sqlSeed = readFileSync(join(root, "supabase/seed/staging_seed.sql"), "utf8");
+const sqlCustomRows = [...sqlSeed.matchAll(/'(50ml|100ml|200ml)',\s*\d+,\s*(\d+)/g)];
+const sqlBad = sqlCustomRows.filter(([, size, fils]) => Number(fils) !== customPriceFils(size));
+if (sqlBad.length > 0) sqlBad.forEach(([, size, fils]) => console.log(`     ↳ SQL: ${size} بـ${fils} فلساً`));
+check(`staging_seed.sql: كل عطر مخصص بسعر السياسة (${sqlCustomRows.length} صفاً)`, sqlCustomRows.length > 0 && sqlBad.length === 0);
 
 console.log(`\n${failures === 0 ? "✅ كل اختبارات التسعير نجحت" : `❌ فشل ${failures}`}`);
 process.exit(failures === 0 ? 0 : 1);

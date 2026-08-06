@@ -109,7 +109,7 @@ insert into public.custom_perfume_requests
   (id, customer_id, catalog_id, free_text_request, bottle_size, quantity, quoted_price_fils, status, customer_notes)
 select '55555555-5555-4555-8555-555555555555',
        '11111111-1111-4111-8111-111111111111',
-       c.id, null, '100ml', 1, 30000, 'accepted', 'ملاحظة تجريبية'
+       c.id, null, '100ml', 1, 32000, 'accepted', 'ملاحظة تجريبية'
 from public.perfume_catalog c where c.code = 'STG-001'
 on conflict (id) do nothing;
 
@@ -117,7 +117,7 @@ insert into public.custom_perfume_requests
   (id, customer_id, catalog_id, free_text_request, bottle_size, quantity, quoted_price_fils, status)
 values ('66666666-6666-4666-8666-666666666666',
         '22222222-2222-4222-8222-222222222222',
-        null, 'عطر تجريبي غير موجود في الكتالوج', '50ml', 1, 24000, 'new')
+        null, 'عطر تجريبي غير موجود في الكتالوج', '50ml', 1, 28000, 'new')
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------

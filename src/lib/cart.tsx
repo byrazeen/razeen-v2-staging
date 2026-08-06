@@ -60,7 +60,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         quantity <= 0 ? prev.filter((l) => l.id !== id) : prev.map((l) => (l.id === id ? { ...l, quantity } : l))
       ),
     clear: () => setLines([]),
-    count: lines.reduce((n, l) => n + l.quantity, 0),
+    // العدّ يطابق ما يُحتسب فعلاً. سطر بلا سعر صالح لا يدخل السلة عبر `add`،
+    // لكنه قد يصل من تخزين محلي مُعدَّل — وحينها كان الشارة تقول «7» بينما
+    // المجاميع تحسب اثنين. المال كان صحيحاً والعدد كاذباً، والرقمان يُقرآن معاً.
+    count: lines.reduce((n, l) => (isPurchasable(l.unitPriceFils) ? n + l.quantity : n), 0),
     totals: pricingTotals(lines),
   }), [lines]);
 

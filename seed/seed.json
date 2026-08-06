@@ -21,7 +21,7 @@
     { "order_number": "STG-1003", "phone": "971500000001", "payment_status": "paid",   "status": "delivered", "total": 355, "items": [{ "handle": "stg-royal-musk", "qty": 1, "unit_price": 355 }] }
   ],
   "custom_orders": [
-    { "order_number": "STG-C-2001", "phone": "971500000001", "perfume_code": "STG-001", "perfume_brand": "[STG] BRAND ALPHA", "perfume_name": "MIDNIGHT FIG", "bottle_size": "100ml", "quantity": 1, "unit_price": 300, "payment_status": "paid",   "production_status": "queued",  "shipping_status": "not_shipped", "customer_notes": "ملاحظة تجريبية" },
+    { "order_number": "STG-C-2001", "phone": "971500000001", "perfume_code": "STG-001", "perfume_brand": "[STG] BRAND ALPHA", "perfume_name": "MIDNIGHT FIG", "bottle_size": "100ml", "quantity": 1, "unit_price": 320, "payment_status": "paid",   "production_status": "queued",  "shipping_status": "not_shipped", "customer_notes": "ملاحظة تجريبية" },
     { "order_number": "STG-C-2002", "phone": "971500000002", "perfume_code": "STG-002", "perfume_brand": "[STG] BRAND BETA",  "perfume_name": "SAFFRON SMOKE", "bottle_size": "100ml", "quantity": 2, "unit_price": 320, "payment_status": "unpaid", "production_status": "not_started", "shipping_status": "not_shipped", "customer_notes": null }
   ]
 }
