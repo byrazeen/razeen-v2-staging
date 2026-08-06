@@ -114,6 +114,8 @@ async function main() {
   await client.query(sql("supabase/migrations/0006_restrictive_writes.sql"));
   await client.query(sql("supabase/migrations/0007_place_order.sql"));
   await client.query(sql("supabase/migrations/0008_anon_cleanup.sql"));
+  await client.query(sql("supabase/migrations/0009_guest_sessions.sql"));
+  await client.query(sql("supabase/migrations/0010_guest_rpcs.sql"));
   await client.query(sql("supabase/seed/staging_seed.sql"));
 
   // مَنفذ للطفرة: يسمح لـrls-mutation-proof.mjs بإضعاف سياسة واحدة بعد تطبيق
@@ -128,7 +130,8 @@ async function main() {
   const tables = (await rows(
     `select tablename, rowsecurity from pg_tables
       where schemaname = 'public' order by tablename`));
-  check(`١٦ جدولاً أُنشئت (${tables.length})`, tables.length === 16);
+  // ١٨ = ١٦ من الأساس + guest_sessions + guest_issue_counters (0009).
+  check(`١٨ جدولاً أُنشئت (${tables.length})`, tables.length === 18);
   check("RLS مفعّل على كل الجداول بلا استثناء", tables.every((t) => t.rowsecurity === true));
   const policyCount = Number((await rows(
     "select count(*)::int as n from pg_policies where schemaname = 'public'"))[0].n);
@@ -789,6 +792,527 @@ async function main() {
   await as("authenticated", NOURA_UID, async () => {
     check("العميل لا يستطيع استدعاء دالة التنظيف",
       await raises("select * from public.cleanup_stale_anonymous_users()"));
+  });
+
+  // =========================================================================
+  // ٢٠ فما بعد — جلسة الضيف (0009 · 0010).
+  //
+  // فاعل ثالث، لا صلة له بـauth.uid() ولا بـauth.users ولا بأي مفتاح يُقلَب في
+  // لوحة تحكّم. هويته رمزٌ يرسله في نص الاستدعاء، والقاعدة تعرف هاشه وحده.
+  //
+  // كل ما يلي يُنفَّذ بالدور `anon` الحقيقي وخارج أي معاملة — لأن هذا بالضبط ما
+  // يفعله التطبيق: مفتاح عام، بلا تسجيل دخول، واستدعاء واحد لكل عملية. وإجراء
+  // الفحص داخل معاملة كان سيخفي ما لا يظهر إلا بين استدعاءين.
+  // =========================================================================
+  console.log("\n— ٢٠) الضيف: إصدار الرمز —");
+
+  /** ينفّذ بالدور anon تماماً كما يفعل PostgREST بالمفتاح العام. */
+  async function anon(text, params = []) {
+    await client.query("select set_config('request.jwt.claims', $1, false)",
+      [JSON.stringify({ role: "anon" })]);
+    await client.query("set role anon");
+    try {
+      const r = await client.query(text, params);
+      return { ok: true, rows: r.rows, message: null };
+    } catch (e) {
+      return { ok: false, rows: [], message: e.message };
+    } finally {
+      await client.query("reset role");
+      await client.query("select set_config('request.jwt.claims', '', false)");
+    }
+  }
+  /** استدعاء RPC ضيف يُتوقَّع نجاحه؛ يُعيد الحمولة أو يرمي. */
+  async function rpc(text, params = []) {
+    const r = await anon(text, params);
+    if (!r.ok) throw new Error(`RPC فشل بخلاف المتوقَّع: ${r.message}\n${text}`);
+    return r.rows[0][Object.keys(r.rows[0])[0]];
+  }
+
+  const issuedA = await rpc("select public.issue_guest_token() as r");
+  const issuedB = await rpc("select public.issue_guest_token() as r");
+  const TOKEN_A = issuedA.token;
+  const TOKEN_B = issuedB.token;
+
+  check("الضيف أ حصل على رمز", typeof TOKEN_A === "string" && TOKEN_A.length > 0);
+  check("الضيف ب حصل على رمز", typeof TOKEN_B === "string");
+  check("والرمزان مختلفان", TOKEN_A !== TOKEN_B);
+  check("الرمز بسابقة معروفة و٣٢ بايت hex (٦٤ محرفاً)",
+    /^rzn_guest_[0-9a-f]{64}$/.test(TOKEN_A));
+  check("والجلستان مختلفتان", issuedA.session_id !== issuedB.session_id);
+  check("ولكلٍّ تاريخ انتهاء", !!issuedA.expires_at && !!issuedB.expires_at);
+
+  console.log("\n— ٢١) الرمز الخام غير قابل للاسترجاع من القاعدة —");
+  // ليس فحصاً على العمود الذي نعرفه، بل على كل عمود في الجدول. لو أضاف أحدهم
+  // غداً عموداً يحفظ الرمز «للتشخيص»، هذا الفحص هو ما يمسكه.
+  const gsCols = (await rows(
+    `select column_name from information_schema.columns
+      where table_schema = 'public' and table_name = 'guest_sessions'`)).map((r) => r.column_name);
+  const anyColEqualsToken = gsCols.map((c) => `(${c}::text = $1)`).join(" or ");
+  const leak = Number((await rows(
+    `select count(*)::int as n from public.guest_sessions where ${anyColEqualsToken}`,
+    [TOKEN_A]))[0].n);
+  check(`لا عمود في guest_sessions يساوي الرمز الخام (فُحص ${gsCols.length} عموداً)`, leak === 0);
+  const hashRow = (await rows(
+    "select token_hash from public.guest_sessions where id = $1", [issuedA.session_id]))[0];
+  check("المخزَّن هو sha256 بصيغة hex", /^[0-9a-f]{64}$/.test(hashRow.token_hash));
+  check("والهاش يطابق sha256 للرمز فعلاً",
+    hashRow.token_hash ===
+      (await rows("select encode(sha256(convert_to($1,'utf8')),'hex') as h", [TOKEN_A]))[0].h);
+  check("والهاش ليس الرمز", hashRow.token_hash !== TOKEN_A);
+
+  const anonRead = await anon("select * from public.guest_sessions");
+  check("anon لا يقرأ guest_sessions إطلاقاً", !anonRead.ok);
+  const anonReadCounters = await anon("select * from public.guest_issue_counters");
+  check("ولا يقرأ دفتر الإصدار", !anonReadCounters.ok);
+  await as("authenticated", NOURA_UID, async () => {
+    check("والعميل الموقّع لا يقرأها أيضاً",
+      await raises("select * from public.guest_sessions"));
+  });
+  // ولو أُعيد المنح، السياسة المقيِّدة وحدها تحجب — الطبقة الثانية تعمل منفردة.
+  await client.query("begin");
+  try {
+    await client.query("grant select on public.guest_sessions to anon");
+    await client.query("select set_config('request.jwt.claims','{\"role\":\"anon\"}', true)");
+    await client.query("set local role anon");
+    const r = await probe("select * from public.guest_sessions");
+    check("حتى مع الصلاحية: صفر صف من guest_sessions", !r.threw && r.rowCount === 0);
+  } finally {
+    await client.query("rollback");
+  }
+
+  console.log("\n— ٢٢) رمز مزوّر / مُبطل / منتهٍ: ثلاثة أخطاء متمايزة —");
+  const forged = await anon("select public.guest_get_cart($1)", ["rzn_guest_" + "0".repeat(64)]);
+  check("رمز مزوّر مرفوض", !forged.ok);
+  check("ورسالته GUEST_TOKEN_UNKNOWN", /GUEST_TOKEN_UNKNOWN/.test(forged.message ?? ""));
+  const empty = await anon("select public.guest_get_cart($1)", [""]);
+  check("ورمز فارغ كذلك", !empty.ok && /GUEST_TOKEN_UNKNOWN/.test(empty.message ?? ""));
+
+  const issuedRevoked = await rpc("select public.issue_guest_token() as r");
+  await rpc("select public.guest_revoke_token($1) as r", [issuedRevoked.token]);
+  const revoked = await anon("select public.guest_get_cart($1)", [issuedRevoked.token]);
+  check("رمز مُبطل مرفوض", !revoked.ok);
+  check("ورسالته GUEST_TOKEN_REVOKED", /GUEST_TOKEN_REVOKED/.test(revoked.message ?? ""));
+
+  const issuedExpired = await rpc("select public.issue_guest_token() as r");
+  await client.query(
+    "update public.guest_sessions set expires_at = now() - interval '1 day' where id = $1",
+    [issuedExpired.session_id]);
+  const expired = await anon("select public.guest_get_cart($1)", [issuedExpired.token]);
+  check("رمز منتهٍ مرفوض", !expired.ok);
+  check("ورسالته GUEST_TOKEN_EXPIRED", /GUEST_TOKEN_EXPIRED/.test(expired.message ?? ""));
+  check("والأخطاء الثلاثة متمايزة فعلاً",
+    new Set([forged.message, revoked.message, expired.message]).size === 3);
+
+  // الرفض يشمل كل باب، لا باب القراءة وحده.
+  for (const [label, call] of [
+    ["guest_get_cart", "select public.guest_get_cart($1)"],
+    ["guest_clear_cart", "select public.guest_clear_cart($1)"],
+    ["guest_list_custom_requests", "select public.guest_list_custom_requests($1)"],
+    ["guest_order_status", "select public.guest_order_status($1)"],
+    ["guest_place_order", "select public.guest_place_order($1, '[]'::jsonb, '{}'::jsonb, 'k')"],
+  ]) {
+    const r = await anon(call, [issuedExpired.token]);
+    check(`${label} يرفض الرمز المنتهي أيضاً`,
+      !r.ok && /GUEST_TOKEN_EXPIRED/.test(r.message ?? ""));
+  }
+
+  console.log("\n— ٢٣) آخر ظهور يُحدَّث عند النجاح —");
+  await client.query(
+    "update public.guest_sessions set last_seen_at = now() - interval '3 days' where id = $1",
+    [issuedA.session_id]);
+  await rpc("select public.guest_get_cart($1) as r", [TOKEN_A]);
+  const seen = (await rows(
+    "select last_seen_at from public.guest_sessions where id = $1", [issuedA.session_id]))[0];
+  check("last_seen_at تحرّك بعد استدعاء ناجح",
+    new Date(seen.last_seen_at).getTime() > Date.now() - 60_000);
+
+  console.log("\n— ٢٤) عزل الضيفين: أ لا يرى ب، وب لا يرى أ —");
+  await rpc("select public.guest_set_cart_item($1, $2, 2) as r", [TOKEN_A, READY_100.id]);
+  await rpc("select public.guest_set_cart_item($1, $2, 1) as r", [TOKEN_B, READY_50.id]);
+  await rpc("select public.guest_create_custom_request($1, '100ml', 'STG-001') as r", [TOKEN_A]);
+  await rpc("select public.guest_create_custom_request($1, '50ml', 'STG-002') as r", [TOKEN_B]);
+
+  const cartGA = await rpc("select public.guest_get_cart($1) as r", [TOKEN_A]);
+  const cartGB = await rpc("select public.guest_get_cart($1) as r", [TOKEN_B]);
+  check("لكلّ ضيف سلة خاصة", cartGA.cart_id !== cartGB.cart_id);
+  check("سلة أ فيها بندان (جاهز + مخصّص)", cartGA.items.length === 2);
+  check("سلة ب فيها بندان", cartGB.items.length === 2);
+  check("أ لا يرى أي بند من بنود ب",
+    !cartGA.items.some((i) => cartGB.items.some((j) => j.item_id === i.item_id)));
+  check("وبند أ الجاهز بكمية ٢ وسعر القاعدة",
+    cartGA.items.some((i) => i.variant_id === READY_100.id && i.quantity === 2
+      && i.unit_price_fils === READY_100.price_fils));
+
+  const cprA = await rpc("select public.guest_list_custom_requests($1) as r", [TOKEN_A]);
+  const cprB = await rpc("select public.guest_list_custom_requests($1) as r", [TOKEN_B]);
+  check("أ يرى طلب عطره المخصّص وحده", cprA.length === 1 && cprA[0].catalog_code === "STG-001");
+  check("وب يرى طلبه هو وحده", cprB.length === 1 && cprB[0].catalog_code === "STG-002");
+  check("ولا تقاطع بين القائمتين", cprA[0].request_id !== cprB[0].request_id);
+
+  const gOrderA = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, $3::jsonb, $4) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]),
+     JSON.stringify({ full_name: "ضيف أ", phone: "0500007001", emirate: "دبي" }), "g-a-1"]);
+  const gOrderB = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, $3::jsonb, $4) as r",
+    [TOKEN_B, JSON.stringify([{ kind: "ready", variant_id: READY_50.id, quantity: 1 }]),
+     JSON.stringify({ full_name: "ضيف ب", phone: "0500007002", emirate: "الشارقة" }), "g-b-1"]);
+  check("الضيف أ أنشأ طلباً", !!gOrderA.order_id);
+  check("الضيف ب أنشأ طلباً", !!gOrderB.order_id);
+
+  const statusA = await rpc("select public.guest_order_status($1) as r", [TOKEN_A]);
+  const statusB = await rpc("select public.guest_order_status($1) as r", [TOKEN_B]);
+  check("أ يرى طلبه هو فقط",
+    statusA.length === 1 && statusA[0].order_id === gOrderA.order_id);
+  check("ب يرى طلبه هو فقط",
+    statusB.length === 1 && statusB[0].order_id === gOrderB.order_id);
+  // والاتجاهان معاً: الاستعلام برقم طلب الآخر لا يُرجع شيئاً — لا خطأً يُخمَّن منه.
+  const crossAB = await rpc("select public.guest_order_status($1, $2) as r",
+    [TOKEN_A, gOrderB.order_number]);
+  const crossBA = await rpc("select public.guest_order_status($1, $2) as r",
+    [TOKEN_B, gOrderA.order_number]);
+  check("أ لا يقرأ طلب ب برقمه", crossAB.length === 0);
+  check("ب لا يقرأ طلب أ برقمه", crossBA.length === 0);
+  check("وأ يرى بنود طلبه هو", statusA[0].items.length === 1);
+
+  // والعزل على مستوى الجدول أيضاً، لا عبر الدوال فحسب: صفوف الضيف محجوبة عن
+  // كل جلسة عميل موقّعة، لأنها ليست ملكه بأي محور.
+  await as("authenticated", NOURA_UID, async () => {
+    check("عميل موقّع لا يرى طلبات الضيوف",
+      (await rows("select 1 from public.orders where guest_session_id is not null")).length === 0);
+    check("ولا سلالهم",
+      (await rows("select 1 from public.carts where guest_session_id is not null")).length === 0);
+    check("ولا صفوف عملائهم",
+      (await rows("select 1 from public.customers where guest_session_id is not null")).length === 0);
+    check("ولا طلبات عطرهم المخصّص",
+      (await rows(
+        "select 1 from public.custom_perfume_requests where guest_session_id is not null")).length === 0);
+    check("ولا بنود سلالهم",
+      (await rows("select 1 from public.cart_items where cart_id = $1", [cartGA.cart_id])).length === 0);
+    check("ولا بنود طلباتهم",
+      (await rows("select 1 from public.order_items where order_id = $1",
+        [gOrderA.order_id])).length === 0);
+  });
+
+  console.log("\n— ٢٥) الضيف لا يمسّ المال ولا العمليات (والقيمة تُقرأ بعدها) —");
+  const beforeGuest = (await rows(
+    `select o.status, o.payment_status, o.total_fils,
+            (select p.status from public.payments p where p.order_id = o.id) as pay_status,
+            (select q.status from public.production_queue q where q.order_id = o.id) as pq_status
+       from public.orders o where o.id = $1`, [gOrderA.order_id]))[0];
+  const GUEST_WRITES = [
+    ["orders.payment_status", "update public.orders set payment_status = 'refunded' where id = $1", [gOrderA.order_id]],
+    ["orders.status", "update public.orders set status = 'delivered' where id = $1", [gOrderA.order_id]],
+    ["payments", "update public.payments set status = 'refunded' where order_id = $1", [gOrderA.order_id]],
+    ["payments (insert)", "insert into public.payments (order_id, provider, status, amount_fils) values ($1,'mock','paid',1)", [gOrderA.order_id]],
+    ["inventory_movements", "insert into public.inventory_movements (variant_id, delta_qty, reason) values ($1, 5, 'adjustment')", [READY_100.id]],
+    ["production_queue", "update public.production_queue set status = 'done' where order_id = $1", [gOrderA.order_id]],
+    ["shipments", "insert into public.shipments (order_id, carrier, status) values ($1,'mock','delivered')", [gOrderA.order_id]],
+    ["audit_logs", "insert into public.audit_logs (action, entity) values ('update','orders')", []],
+    ["guest_sessions", "update public.guest_sessions set expires_at = now() + interval '999 days'", []],
+  ];
+  for (const [label, text, params] of GUEST_WRITES) {
+    const r = await anon(text, params);
+    check(`الضيف لا يكتب ${label}`, !r.ok || r.rows.length === 0);
+  }
+  const afterGuest = (await rows(
+    `select o.status, o.payment_status,
+            (select p.status from public.payments p where p.order_id = o.id) as pay_status,
+            (select q.status from public.production_queue q where q.order_id = o.id) as pq_status,
+            (select count(*)::int from public.payments p where p.order_id = o.id) as pay_count
+       from public.orders o where o.id = $1`, [gOrderA.order_id]))[0];
+  check("حالة الطلب لم تتغيّر فعلاً",
+    afterGuest.status === beforeGuest.status
+    && afterGuest.payment_status === beforeGuest.payment_status);
+  check("وحالة الدفع لم تتغيّر فعلاً", afterGuest.pay_status === beforeGuest.pay_status);
+  check("ولا دفعة ثانية اختُرعت", afterGuest.pay_count === 1);
+  check("وطابور الإنتاج لم يتغيّر", afterGuest.pq_status === beforeGuest.pq_status);
+  check("ولا شحنة اختُرعت",
+    (await rows("select 1 from public.shipments where order_id = $1", [gOrderA.order_id])).length === 0);
+  check("ولا حركة مخزون",
+    (await rows("select 1 from public.inventory_movements where variant_id = $1 and delta_qty = 5",
+      [READY_100.id])).length === 0);
+  const expiryUnchanged = (await rows(
+    "select expires_at from public.guest_sessions where id = $1", [issuedA.session_id]))[0];
+  check("ولم يُمدَّد عمر الجلسة",
+    new Date(expiryUnchanged.expires_at).getTime() < Date.now() + 40 * 86400_000);
+
+  console.log("\n— ٢٦) السعر من القاعدة: كذب المتصفّح لا يترك أثراً —");
+  const gLied = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, $3::jsonb, $4) as r",
+    [TOKEN_A, JSON.stringify([{
+      kind: "ready", variant_id: READY_100.id, quantity: 1,
+      unit_price_fils: 1, price_fils: 1, line_total_fils: 1,
+      total_fils: 1, subtotal_fils: 1, discount_fils: 999999,
+    }]), "{}", "g-a-lied"]);
+  const gLieRow = (await rows(
+    `select o.subtotal_fils, o.total_fils, o.discount_fils, o.shipping_fils,
+            i.unit_price_fils
+       from public.orders o join public.order_items i on i.order_id = o.id
+      where o.id = $1`, [gLied.order_id]))[0];
+  check(`سعر الوحدة من القاعدة (${gLieRow.unit_price_fils})`,
+    gLieRow.unit_price_fils === READY_100.price_fils);
+  check("لا 1 فلس كما أرسل", gLieRow.unit_price_fils !== 1);
+  check("الخصم المُرسل (999999) تُجوهل", gLieRow.discount_fils === 0);
+  check("الشحن 2500 لبند واحد", gLieRow.shipping_fils === 2500);
+  check("المجموع محسوب لا مستلَم",
+    gLieRow.total_fils === READY_100.price_fils + 2500);
+  // ولا حتى وسيط سعر في باب السلة: توقيع الدالة نفسه لا يقبل واحداً.
+  const cartArgs = (await rows(
+    `select pg_get_function_arguments(p.oid) as args from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'guest_set_cart_item'`))[0].args;
+  check("guest_set_cart_item لا تقبل سعراً أصلاً", !/price/i.test(cartArgs));
+
+  console.log("\n— ٢٧) حدّ الثلاثة للضيف، محسوباً في الخادم —");
+  const gTwo = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 2 }]), "g-a-two"]);
+  check(`ضيف/بندان: فرعي ${gTwo.subtotal_fils}`,
+    gTwo.subtotal_fils === READY_100.price_fils * 2);
+  check("ضيف/بندان: شحن 2500", gTwo.shipping_fils === 2500);
+  check("ضيف/بندان: لا خصم", gTwo.discount_fils === 0);
+  check("ضيف/بندان: المجموع = فرعي + 2500",
+    gTwo.total_fils === READY_100.price_fils * 2 + 2500);
+
+  const gThree = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_B, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 3 }]), "g-b-three"]);
+  const gThreeSub = READY_100.price_fils * 3;
+  const gThreeDisc = Math.floor((gThreeSub * 5 * 2 + 100) / 200);
+  check(`ضيف/ثلاثة: فرعي ${gThree.subtotal_fils}`, gThree.subtotal_fils === gThreeSub);
+  check("ضيف/ثلاثة: شحن 0", gThree.shipping_fils === 0);
+  check(`ضيف/ثلاثة: خصم 5% = ${gThreeDisc}`, gThree.discount_fils === gThreeDisc);
+  check("ضيف/ثلاثة: المجموع = فرعي − خصم",
+    gThree.total_fils === gThreeSub - gThreeDisc);
+
+  console.log("\n— ٢٨) الضيف: المفتاح نفسه مرّتين ⇒ طلب واحد —");
+  const GKEY = "g-idem-once";
+  const g1 = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]), GKEY]);
+  const g2 = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_50.id, quantity: 3 }]), GKEY]);
+  check("الاستدعاء الثاني يُعيد المعرّف نفسه", g1.order_id === g2.order_id);
+  check("ويُعلن أنه إعادة", g2.idempotent_replay === true);
+  check("وصفٌ واحد لا غير في orders",
+    Number((await rows(
+      `select count(*)::int as n from public.orders
+        where idempotency_key = $1 and guest_session_id = $2`,
+      [GKEY, issuedA.session_id]))[0].n) === 1);
+  check("ولا بنود مضاعفة",
+    Number((await rows("select count(*)::int as n from public.order_items where order_id = $1",
+      [g1.order_id]))[0].n) === 1);
+  check("ولا دفعة ثانية",
+    Number((await rows("select count(*)::int as n from public.payments where order_id = $1",
+      [g1.order_id]))[0].n) === 1);
+  // ومفتاح الضيف أ لا يصطدم بمفتاح الضيف ب: الفهرس على (customer_id, key).
+  const gCollide = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_B, JSON.stringify([{ kind: "ready", variant_id: READY_50.id, quantity: 1 }]), GKEY]);
+  check("المفتاح نفسه من ضيف آخر يُنشئ طلبه هو",
+    gCollide.order_id !== g1.order_id && gCollide.idempotent_replay === false);
+
+  console.log("\n— ٢٩) المدفوع وحده يدخل طابور الإنتاج (مسار الضيف) —");
+  const gPaid = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3, 'success') as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]), "g-paid"]);
+  const gFailed = await rpc(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3, 'failed') as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]), "g-failed"]);
+  check("طلب الضيف الناجح paid/paid",
+    gPaid.status === "paid" && gPaid.payment_status === "paid");
+  check("والفاشل failed/failed",
+    gFailed.status === "failed" && gFailed.payment_status === "failed");
+  check("المدفوع في الطابور",
+    (await rows("select 1 from public.production_queue where order_id = $1",
+      [gPaid.order_id])).length === 1);
+  check("والفاشل ليس فيه",
+    (await rows("select 1 from public.production_queue where order_id = $1",
+      [gFailed.order_id])).length === 0);
+  check("وللفاشل صف دفع بحالة failed",
+    (await rows("select status from public.payments where order_id = $1",
+      [gFailed.order_id]))[0].status === "failed");
+
+  console.log("\n— ٣٠) سقوف الحماية تعمل فعلاً —");
+  // ٣٠-أ) سقف محاولات الدفع لكل جلسة. العدّاد يُقرَّب إلى ما دون السقف بواحد،
+  // ثم تُجرى محاولة مشروعة (يجب أن تنجح وترفع العدّاد إلى السقف)، ثم أخرى
+  // (يجب أن تُرفض). الفحصان معاً هما ما يثبت أن العدّاد يعدّ وأن السقف يمنع —
+  // أحدهما وحده كان يمكن أن يمرّ بسقف مكسور في أي من الاتجاهين.
+  const CAP = Number((await rows("select public.guest_checkout_cap() as c"))[0].c);
+  check("سقف محاولات الدفع معلَن ورقمه معقول", CAP === 10);
+  await client.query(
+    `update public.guest_sessions
+        set checkout_attempts = $2, checkout_window_start = now() where id = $1`,
+    [issuedA.session_id, CAP - 1]);
+  const lastAllowed = await anon(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]), "g-cap-ok"]);
+  check("المحاولة الأخيرة تحت السقف تنجح", lastAllowed.ok);
+  const overCap = await anon(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]), "g-cap-no"]);
+  check("والمحاولة التالية تُرفض", !overCap.ok);
+  check("برسالة GUEST_CHECKOUT_RATE_LIMIT",
+    /GUEST_CHECKOUT_RATE_LIMIT/.test(overCap.message ?? ""));
+  check("ولم يُنشَأ طلب من المحاولة المرفوضة",
+    (await rows("select 1 from public.orders where idempotency_key = 'g-cap-no'")).length === 0);
+  // والنافذة تتدحرج: تقديم بدايتها إلى ما قبل النافذة يعيد فتح الباب.
+  await client.query(
+    `update public.guest_sessions
+        set checkout_window_start = now() - public.guest_checkout_window() - interval '1 minute'
+      where id = $1`, [issuedA.session_id]);
+  const afterWindow = await anon(
+    "select public.guest_place_order($1, $2::jsonb, '{}'::jsonb, $3) as r",
+    [TOKEN_A, JSON.stringify([{ kind: "ready", variant_id: READY_100.id, quantity: 1 }]), "g-cap-next"]);
+  check("وبعد انتهاء النافذة يُسمح من جديد", afterWindow.ok);
+  check("والعدّاد صُفّر إلى ١",
+    Number((await rows(
+      "select checkout_attempts from public.guest_sessions where id = $1",
+      [issuedA.session_id]))[0].checkout_attempts) === 1);
+
+  // ٣٠-ب) سقف إصدار الجلسات. المحور زمني عالمي — وهو ما يمكن فرضه من SQL،
+  // فالـIP غير مرئي أصلاً (موثّق في 0009). يُملأ دلو النافذة الحالية إلى السقف
+  // ثم يُطلب رمز جديد.
+  const ISSUE_CAP = Number((await rows("select public.guest_issue_cap() as c"))[0].c);
+  check("سقف الإصدار معلَن", ISSUE_CAP === 300);
+  const bucketBefore = Number((await rows(
+    "select coalesce(sum(issued),0)::int as n from public.guest_issue_counters"))[0].n);
+  check("دفتر الإصدار عدّ الرموز الصادرة فعلاً", bucketBefore >= 4);
+  await client.query(
+    `update public.guest_issue_counters set issued = public.guest_issue_cap()
+      where window_start = (select max(window_start) from public.guest_issue_counters)`);
+  const overIssue = await anon("select public.issue_guest_token() as r");
+  check("طلب رمز فوق السقف مرفوض", !overIssue.ok);
+  check("برسالة GUEST_ISSUE_RATE_LIMIT", /GUEST_ISSUE_RATE_LIMIT/.test(overIssue.message ?? ""));
+  const cntAfter = Number((await rows(
+    `select issued from public.guest_issue_counters
+      where window_start = (select max(window_start) from public.guest_issue_counters)`))[0].issued);
+  check("والعدّاد لم يتجاوز السقف (الزيادة تراجعت مع الخطأ)", cntAfter === ISSUE_CAP);
+  await client.query(
+    `update public.guest_issue_counters set issued = 1
+      where window_start = (select max(window_start) from public.guest_issue_counters)`);
+
+  console.log("\n— ٣١) الصلاحيات: ما يُنادى بالمفتاح العام وما لا يُنادى —");
+  const GUEST_PUBLIC = [
+    "issue_guest_token", "guest_revoke_token", "guest_get_cart", "guest_set_cart_item",
+    "guest_clear_cart", "guest_create_custom_request", "guest_list_custom_requests",
+    "guest_place_order", "guest_order_status",
+  ];
+  const GUEST_INTERNAL = [
+    "guest_token_hash", "guest_session_id_for", "guest_touch", "guest_cart_id",
+    "place_order_core", "cleanup_guest_sessions",
+    "guest_session_ttl", "guest_issue_cap", "guest_issue_window",
+    "guest_checkout_cap", "guest_checkout_window",
+  ];
+  const fnPriv = await rows(
+    `select p.proname, r.rolname, has_function_privilege(r.oid, p.oid, 'EXECUTE') as can
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       cross join lateral (values ('anon'),('authenticated')) as g(name)
+       join pg_roles r on r.rolname = g.name
+      where n.nspname = 'public' and p.proname = any($1)`,
+    [[...GUEST_PUBLIC, ...GUEST_INTERNAL]]);
+  for (const f of GUEST_PUBLIC) {
+    check(`anon ينفّذ ${f}`,
+      fnPriv.some((r) => r.proname === f && r.rolname === "anon" && r.can === true));
+  }
+  for (const f of GUEST_INTERNAL) {
+    check(`anon لا ينفّذ ${f}`,
+      !fnPriv.some((r) => r.proname === f && r.rolname === "anon" && r.can === true));
+    check(`ولا authenticated ينفّذ ${f}`,
+      !fnPriv.some((r) => r.proname === f && r.rolname === "authenticated" && r.can === true));
+  }
+  const guestSearchPaths = await rows(
+    `select p.proname, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and (p.proname like 'guest\\_%' or p.proname in
+            ('issue_guest_token','place_order_core','cleanup_guest_sessions'))`);
+  check(`مسار البحث مثبّت على كل دوال الضيف (${guestSearchPaths.length})`,
+    guestSearchPaths.length > 0 && guestSearchPaths.every(
+      (f) => Array.isArray(f.proconfig) && f.proconfig.some((c) => c.startsWith("search_path="))));
+  check("وكلها SECURITY DEFINER أو ثوابت immutable",
+    (await rows(
+      `select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname in
+              ('issue_guest_token','guest_place_order','guest_get_cart','guest_order_status',
+               'guest_set_cart_item','guest_create_custom_request','place_order_core')
+          and not p.prosecdef`)).length === 0);
+
+  console.log("\n— ٣٢) مسار الإدارة لم يتغيّر، ولا يحمل رمز ضيف —");
+  await as("authenticated", ADMIN_UID, async () => {
+    check("المدير يرى طلب الضيف",
+      (await rows("select 1 from public.orders where id = $1", [gOrderA.order_id])).length === 1);
+    check("ويرى صف عميله",
+      (await rows("select 1 from public.customers where guest_session_id is not null")).length > 0);
+    const moved = await client.query(
+      "select public.admin_set_order_status($1, 'in_production') as o", [gOrderA.order_id]);
+    check("وينقل حالته عبر admin_set_order_status", moved.rowCount === 1);
+    // القراءة داخل الكتلة لا خارجها: `as()` تتراجع عن معاملتها عند الخروج،
+    // فالقيمة تُقرأ حيث كُتبت. المهم أن الصف المخزَّن تغيّر فعلاً لا أن
+    // الاستدعاء لم يخطئ.
+    check("والقيمة المخزَّنة صارت in_production فعلاً",
+      (await rows("select status from public.orders where id = $1",
+        [gOrderA.order_id]))[0].status === "in_production");
+    check("والمدير نفسه لا يقرأ guest_sessions",
+      await raises("select * from public.guest_sessions"));
+    check("ولا يستدعي دوال الضيف الداخلية",
+      await raises("select public.guest_session_id_for('x')"));
+  });
+  check("ولا وسيط رمز في دالتَي الإدارة",
+    (await rows(
+      `select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname='public' and p.proname in
+              ('admin_set_order_status','admin_record_inventory_movement')
+          and pg_get_function_arguments(p.oid) ilike '%token%'`)).length === 0);
+
+  console.log("\n— ٣٣) تنظيف جلسات الضيوف: الحارس لا يُساوَم —");
+  // جلسة راكدة بلا طلب، وجلسة لها طلب. الأولى تُحذف، والثانية لا — أبداً.
+  const issuedStale = await rpc("select public.issue_guest_token() as r");
+  await client.query(
+    `update public.guest_sessions
+        set last_seen_at = now() - interval '90 days', created_at = now() - interval '90 days'
+      where id = $1`, [issuedStale.session_id]);
+  await client.query(
+    `update public.guest_sessions set last_seen_at = now() - interval '90 days' where id = $1`,
+    [issuedA.session_id]);
+
+  const gDry = (await rows("select deleted_session_id from public.cleanup_guest_sessions()"))
+    .map((r) => r.deleted_session_id);
+  check("الاستعراض يرشّح الجلسة الراكدة بلا طلب", gDry.includes(issuedStale.session_id));
+  check("ولا يرشّح جلسةً لها طلب (أ) مهما ركدت", !gDry.includes(issuedA.session_id));
+  check("والاستعراض لم يحذف شيئاً",
+    (await rows("select 1 from public.guest_sessions where id = $1",
+      [issuedStale.session_id])).length === 1);
+  await client.query("begin");
+  check("عتبة أقصر من يوم مرفوضة",
+    await raises("select * from public.cleanup_guest_sessions('30 minutes', false)"));
+  await client.query("rollback");
+
+  await client.query("select * from public.cleanup_guest_sessions('30 days', false)");
+  check("الحذف الفعلي أزال الراكدة",
+    (await rows("select 1 from public.guest_sessions where id = $1",
+      [issuedStale.session_id])).length === 0);
+  check("وأبقى صاحبة الطلب (أ)",
+    (await rows("select 1 from public.guest_sessions where id = $1",
+      [issuedA.session_id])).length === 1);
+  check("وطلب أ ما زال قائماً بصاحبه",
+    (await rows("select 1 from public.orders where id = $1 and guest_session_id = $2",
+      [gOrderA.order_id, issuedA.session_id])).length === 1);
+  check("ورمز أ ما زال يعمل بعد التنظيف",
+    (await anon("select public.guest_order_status($1)", [TOKEN_A])).ok);
+  // والقيد في القاعدة يقول الشيء نفسه: الحذف المباشر لجلسة لها طلب يفشل.
+  await client.query("begin");
+  check("حذف جلسة لها طلب يفشل على مستوى القيد",
+    await raises("delete from public.guest_sessions where id = $1", [issuedA.session_id]));
+  await client.query("rollback");
+  check("والجلسة ما زالت قائمة",
+    (await rows("select 1 from public.guest_sessions where id = $1",
+      [issuedA.session_id])).length === 1);
+
+  await as("authenticated", NOURA_UID, async () => {
+    check("العميل لا يستدعي دالة تنظيف الضيوف",
+      await raises("select * from public.cleanup_guest_sessions()"));
   });
 
   console.log(`\n${failures === 0 ? "✅ كل الاختبارات نجحت" : `❌ فشل ${failures}`}`);
