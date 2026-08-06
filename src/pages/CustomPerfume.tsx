@@ -17,6 +17,7 @@ import { search } from "@/lib/search";
 import { customPriceFils, formatFils, lineTotalFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { Async } from "@/components/states";
+import { Media } from "@/components/Media";
 
 const asSearchable = (o: CustomOil) => ({ title: `${o.brand} ${o.name}`, aliases: [o.name, o.brand, o.code] });
 
@@ -52,24 +53,34 @@ export default function CustomPerfume() {
   return (
     <>
       <h1>صمّم عطرك الخاص</h1>
+      <p className="lede">اختر العطر ثم الحجم. السعر الذي تراه هنا هو نفسه الذي يدخل السلة.</p>
       <div className="stepbar" aria-hidden="true">
         <span className={`step ${step >= 1 ? "on" : ""}`} /><span className={`step ${step >= 2 ? "on" : ""}`} />
       </div>
 
-      <label htmlFor="oil" className="small muted">اكتب اسم العطر أو البراند</label>
+      <label htmlFor="oil" className="small muted" style={{ marginTop: 14 }}>اكتب اسم العطر أو البراند</label>
       <input id="oil" className="field" value={q} placeholder="مثال: MIDNIGHT FIG أو BRAND ALPHA"
         onChange={(e) => { setQ(e.target.value); setPicked(null); }} style={{ marginTop: 6 }} />
 
       <Async state={state} loadingLabel="جاري تحميل قائمة الزيوت…">
         {() => (
           <>
+            {!q.trim() && !picked && (
+              <p className="tiny muted" style={{ marginTop: 10 }}>
+                اكتب حرفين وتظهر الاقتراحات. ما لقيت عطرك؟ نسجّله كطلب خاص.
+              </p>
+            )}
+
             {q.trim() && !picked && !unlisted && (
               <div className="grid" style={{ marginTop: 10 }} data-testid="suggestions">
                 {suggestions.map((o) => (
-                  <button key={o.code} className="card" style={{ textAlign: "start", cursor: "pointer" }}
+                  <button key={o.code} className="card row" style={{ gap: 12 }}
                     onClick={() => { setPicked(o); setUnlisted(false); setFreeText(""); }}>
-                    <strong>{o.name}</strong>
-                    <span className="tiny muted" style={{ display: "block" }}>{o.brand} · {o.code}</span>
+                    <Media size="thumb" label={o.name} />
+                    <span style={{ minWidth: 0 }}>
+                      <strong style={{ display: "block" }}>{o.name}</strong>
+                      <span className="tiny muted">{o.brand} · {o.code}</span>
+                    </span>
                   </button>
                 ))}
                 {suggestions.length === 0 && <p className="tiny muted">ما في اقتراح مطابق.</p>}
@@ -91,19 +102,22 @@ export default function CustomPerfume() {
 
             {chosen && (
               <>
-                <div className="card" style={{ marginTop: 14 }}>
-                  <strong>{requestedName}</strong>
-                  {picked
-                    ? <span className="tiny muted" style={{ display: "block" }}>كود الزيت: {picked.code}</span>
-                    : <span className="tiny muted" style={{ display: "block" }}>طلب خاص — يحتاج تأكيد التوفر</span>}
+                <div className="card row" style={{ marginTop: 14, gap: 14 }}>
+                  <Media size="thumb" label={requestedName} />
+                  <span style={{ minWidth: 0 }}>
+                    <strong style={{ display: "block" }}>{requestedName}</strong>
+                    {picked
+                      ? <span className="tiny muted">كود الزيت: {picked.code}</span>
+                      : <span className="tiny muted">طلب خاص — يحتاج تأكيد التوفر</span>}
+                  </span>
                 </div>
 
-                <h2>الحجم</h2>
+                <p className="eyebrow">الحجم</p>
                 <div className="grid two">
                   {BOTTLE_SIZES.map((s) => {
                     const available = customPriceFils(s) !== null;
                     return (
-                      <button key={s} className={`btn ${size === s ? "" : "ghost"}`} disabled={!available}
+                      <button key={s} className={`btn ${size === s ? "sel" : "ghost"}`} disabled={!available}
                         title={available ? undefined : UNAVAILABLE_LABEL}
                         onClick={() => setSize(s)}>
                         {s}{available ? "" : ` — ${UNAVAILABLE_LABEL}`}
@@ -112,28 +126,27 @@ export default function CustomPerfume() {
                   })}
                 </div>
 
-                <h2>الكمية</h2>
+                <p className="eyebrow">الكمية</p>
                 <div className="row">
                   <button className="icon-btn" aria-label="أنقص" onClick={() => setQuantity((n) => Math.max(1, n - 1))}>−</button>
                   <span style={{ minWidth: 32, textAlign: "center", fontWeight: 700 }}>{quantity}</span>
                   <button className="icon-btn" aria-label="زد" onClick={() => setQuantity((n) => Math.min(20, n + 1))}>+</button>
                 </div>
 
-                <h2>ملاحظات (اختياري)</h2>
+                <p className="eyebrow">ملاحظات (اختياري)</p>
                 <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أي تفصيل يهمك" />
 
-                <div className="card" style={{ marginTop: 14 }}>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span className="muted small">السعر</span>
-                    <strong style={{ fontSize: 20 }} data-testid="custom-price">
-                      {unitPriceFils === null
-                        ? (picked ? UNAVAILABLE_LABEL : "يُسعَّر بعد التأكيد")
-                        : formatFils(lineTotalFils({ unitPriceFils, quantity }))}
-                    </strong>
+                <div className="panel" style={{ marginTop: 18 }}>
+                  <div className="sum total" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
+                    <span>الإجمالي</span>
+                    {unitPriceFils === null
+                      ? <strong className="price-na" data-testid="custom-price">{picked ? UNAVAILABLE_LABEL : "يُسعَّر بعد التأكيد"}</strong>
+                      : <strong className="price price-lg" data-testid="custom-price">{formatFils(lineTotalFils({ unitPriceFils, quantity }))}</strong>}
                   </div>
                 </div>
 
-                <button className="btn" style={{ marginTop: 14 }} disabled={!requestedName || unitPriceFils === null}
+                <div className="actionbar">
+                <button className="btn" disabled={!requestedName || unitPriceFils === null}
                   data-testid="custom-add"
                   onClick={() => {
                     if (unitPriceFils === null) return;
@@ -151,6 +164,7 @@ export default function CustomPerfume() {
                   }}>
                   {unitPriceFils === null ? UNAVAILABLE_LABEL : "أضف للسلة"}
                 </button>
+                </div>
               </>
             )}
           </>

@@ -29,17 +29,17 @@ export default function AdminOrder() {
           if (!current) return null;
           return (
             <>
-              <h1>{current.orderNumber}</h1>
+              <h1 className="num">{current.orderNumber}</h1>
               <div className="card">
                 <strong>{current.customer.name}</strong>
-                <span className="tiny muted" style={{ display: "block" }}>{current.customer.phone}</span>
+                <span className="tiny muted num" style={{ display: "block" }}>{current.customer.phone}</span>
                 <span className="tiny muted" style={{ display: "block" }}>
                   {[current.customer.address.emirate, current.customer.address.area, current.customer.address.street,
                     current.customer.address.building, current.customer.address.flat].filter(Boolean).join(" · ")}
                 </span>
               </div>
 
-              <h2>الأصناف</h2>
+              <p className="eyebrow">الأصناف</p>
               <div className="grid">
                 {current.lines.map((l) => (
                   <div key={l.id} className="card">
@@ -50,32 +50,32 @@ export default function AdminOrder() {
                         {l.perfumeCode && <span className="tiny muted" style={{ display: "block" }}>كود الزيت: {l.perfumeCode}</span>}
                         <span className="tiny muted">{l.kind === "custom" ? "عطر مخصص" : "عطر جاهز"} · ×{l.quantity}</span>
                       </span>
-                      <strong>{formatFils(lineTotalFils(l))}</strong>
+                      <strong className="price">{formatFils(lineTotalFils(l))}</strong>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="card" style={{ marginTop: 12 }}>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="muted small">المجموع</span><span>{formatFils(current.subtotalFils)}</span>
+              <div className="panel" style={{ marginTop: 14 }}>
+                <div className="sum">
+                  <span>المجموع</span><span className="price">{formatFils(current.subtotalFils)}</span>
                 </div>
                 {current.discountFils > 0 && (
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <span className="muted small">خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
-                    <span data-testid="order-discount">−{formatFils(current.discountFils)}</span>
+                  <div className="sum">
+                    <span>خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
+                    <span className="price" data-testid="order-discount">−{formatFils(current.discountFils)}</span>
                   </div>
                 )}
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="muted small">الشحن</span>
-                  <span>{current.shippingFils === 0 ? "مجاني" : formatFils(current.shippingFils)}</span>
+                <div className="sum">
+                  <span>الشحن</span>
+                  <span className="price">{current.shippingFils === 0 ? "مجاني" : formatFils(current.shippingFils)}</span>
                 </div>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="muted small">الإجمالي</span>
-                  <strong data-testid="order-total">{formatFils(current.totalFils)}</strong>
+                <div className="sum total">
+                  <span>الإجمالي</span>
+                  <strong className="price price-lg" data-testid="order-total">{formatFils(current.totalFils)}</strong>
                 </div>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="muted small">الدفع</span>
+                <div className="sum">
+                  <span>الدفع</span>
                   <strong data-testid="payment-status">{current.paymentStatus}</strong>
                 </div>
                 {!isProductionEligible(current) && (
@@ -85,10 +85,10 @@ export default function AdminOrder() {
                 )}
               </div>
 
-              <h2>حالة التصنيع</h2>
-              <div className="grid two">
+              <p className="eyebrow">حالة التصنيع</p>
+              <div className="chips">
                 {PRODUCTION.map((s) => (
-                  <button key={s} className={`btn ${current.productionStatus === s ? "" : "ghost"}`} disabled={busy}
+                  <button key={s} className={`chip ${current.productionStatus === s ? "sel" : ""}`.trim()} disabled={busy}
                     onClick={async () => {
                       setBusy(true);
                       try { setOrder(await repository.setProductionStatus(current.orderNumber, s)); } finally { setBusy(false); }
@@ -98,10 +98,10 @@ export default function AdminOrder() {
                 ))}
               </div>
 
-              <h2>حالة الشحن</h2>
-              <div className="grid two">
+              <p className="eyebrow">حالة الشحن</p>
+              <div className="chips">
                 {SHIPPING.map((s) => (
-                  <button key={s} className={`btn ${current.shippingStatus === s ? "" : "ghost"}`} disabled={busy}
+                  <button key={s} className={`chip ${current.shippingStatus === s ? "sel" : ""}`.trim()} disabled={busy}
                     onClick={async () => {
                       setBusy(true);
                       try {
@@ -114,9 +114,9 @@ export default function AdminOrder() {
                   </button>
                 ))}
               </div>
-              {current.trackingNumber && <p className="tiny muted">رقم التتبّع التجريبي: {current.trackingNumber}</p>}
+              {current.trackingNumber && <p className="tiny muted">رقم التتبّع التجريبي: <span className="num">{current.trackingNumber}</span></p>}
 
-              <Link className="btn ghost" to="/admin" style={{ display: "inline-block", marginTop: 14 }}>رجوع للطلبات</Link>
+              <Link className="chip" to="/admin" style={{ display: "inline-flex", alignItems: "center", marginTop: 18 }}>رجوع للطلبات</Link>
             </>
           );
         }}

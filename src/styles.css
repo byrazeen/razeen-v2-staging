@@ -1,64 +1,506 @@
-/* Neutral staging skin. No brand decisions here — art direction is deliberately
-   deferred, so this file stays boring on purpose and is expected to be replaced. */
+/* =============================================================================
+   RAZEEN V2 — الهوية البصرية
+   -----------------------------------------------------------------------------
+   دار عطور حديثة، لا قالب فخامة عام ولا واجهة ألعاب.
+
+   الفكرة: علبة لكّية سوداء بداخلها بطاقة ورقية.
+   الإطار (الترويسة، البانر، البطل، إطارات الصور) حبريّ بنفسجيّ عميق؛
+   وسطح القراءة (البطاقات، النماذج، القوائم) ورقٌ عاجيّ دافئ.
+   الذهب خيط رفيع لا مساحة: يظهر في الفواصل وحالة الاختيار وسطر الإجمالي فقط.
+
+   قواعد ثابتة:
+     • لا توهّج ولا نيون ولا ظلال ملوّنة. العمق من تدرّج خافت وخيط ذهبي.
+     • العربية لا تُباعَد حروفها أبداً. letter-spacing للاتينية وحدها (.lat).
+     • كل زوج نص/خلفية هنا يتجاوز WCAG AA.
+     • الخطوط من النظام فقط — لا طلب خارجي واحد، وCSP لا يسمح به أصلاً.
+   ============================================================================ */
+
 :root {
-  --bg: #ffffff; --fg: #16161a; --muted: #6b7280; --line: #e5e7eb;
-  --accent: #1f2937; --accent-fg: #ffffff; --soft: #f7f7f8; --warn: #92400e; --warn-bg: #fef3c7;
-  --radius: 14px; --tap: 44px;
+  /* --- الألوان: أسود، بنفسجي، ذهب — أهدأ وأغلى ------------------------------ */
+  --ink:        #17121d;  /* أسود بميل بنفسجي — أرض الإطار */
+  --ink-2:      #221a2b;  /* حبر مرفوع — البطل وإطار الصورة */
+  --ink-3:      #33283f;  /* حدّ داخل الحبر */
+  --plum:       #4d2f68;  /* بنفسجي عميق — العمق وحالة الاختيار */
+  --plum-soft:  #ece5f3;  /* بنفسجي مخفَّف على الورق */
+  --plum-text:  #593579;  /* بنفسجي مقروء كنص على الورق */
+  --gold:       #c69a4c;  /* ذهب مطفي — خيط لا مساحة */
+  --gold-lo:    #7d5f24;  /* ذهب داكن — حين يلزم الذهب أن يكون نصاً */
+  --paper:      #f7f4ef;  /* ورق عاجيّ — سطح القراءة */
+  --paper-2:    #efeae2;  /* ورق غائر — الأسطح الثانوية */
+  --line:       #ddd5ca;  /* خيط الورق */
+  --line-ink:   #362b42;  /* خيط الحبر */
+
+  --fg:          #1b1620; /* نص على الورق */
+  --fg-muted:    #57505d; /* نص ثانوي على الورق */
+  --fg-on-ink:   #f2ebe1; /* نص على الحبر */
+  --muted-on-ink:#c3b9cd; /* ثانوي على الحبر */
+
+  --danger:     #8f1d1d;
+  --danger-bg:  #fbeaea;
+  --ok:         #1f5d3c;
+
+  /* --- الخطوط ---------------------------------------------------------------
+     خطوط النظام فقط. SF Arabic على أجهزة آبل، Dubai على ويندوز (خط إماراتي
+     مُصمَّم للشاشة)، Noto Sans Arabic على أندرويد. لا CDN ولا تحميل وقت التشغيل. */
+  --f-sans: "SF Arabic", "Dubai", "Noto Sans Arabic", "Segoe UI", Tahoma,
+            system-ui, -apple-system, sans-serif;
+  --f-display: "SF Arabic", "Dubai", "Noto Naskh Arabic", "Amiri", var(--f-sans);
+  --f-num: "SF Arabic", "Dubai", "Segoe UI", system-ui, sans-serif;
+
+  /* --- المقاس والإيقاع ------------------------------------------------------ */
+  --radius:   14px;
+  --radius-s: 10px;
+  --tap:      48px;
+  --gutter:   18px;
+  --shadow:   0 1px 2px rgba(23, 18, 29, .06), 0 8px 24px -14px rgba(23, 18, 29, .22);
+  --ease:     cubic-bezier(.2, .7, .3, 1);
 }
+
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; }
+html { -webkit-text-size-adjust: 100%; }
+html, body, #root { min-height: 100%; }
+
 body {
-  margin: 0; background: var(--bg); color: var(--fg);
-  font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
-  font-size: 15px; line-height: 1.6; -webkit-text-size-adjust: 100%;
+  margin: 0;
+  background: var(--ink);
+  color: var(--fg);
+  font-family: var(--f-sans);
+  font-size: 16px;
+  line-height: 1.75;        /* العربية تحتاج فسحة رأسية أكبر من اللاتينية */
+  letter-spacing: normal;   /* لا تُباعَد العربية. أبداً. */
+  font-kerning: normal;
 }
+
 a { color: inherit; text-decoration: none; }
-button, input { font: inherit; color: inherit; }
-.wrap { max-width: 520px; margin: 0 auto; padding: 0 16px 96px; }
-@media (min-width: 900px) { .wrap { max-width: 900px; } }
+button, input, select, textarea { font: inherit; color: inherit; font-family: var(--f-sans); }
+img { max-width: 100%; display: block; }
+::selection { background: var(--plum); color: var(--fg-on-ink); }
 
-.hdr { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
-.hdr-in { max-width: 520px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 10px; }
-@media (min-width: 900px) { .hdr-in { max-width: 900px; } }
-.brand { font-weight: 800; letter-spacing: .02em; margin-inline-end: auto; }
+/* بؤرة لوحة المفاتيح ظاهرة على السطحين، الحبريّ والورقيّ. */
+:focus-visible { outline: 2px solid var(--plum-text); outline-offset: 2px; border-radius: 6px; }
+.hdr :focus-visible, .hero :focus-visible, .admin-bar :focus-visible { outline-color: var(--gold); }
+
+/* اللاتينية وحدها تُباعَد. */
+.lat { font-family: var(--f-num); letter-spacing: .08em; }
+
+/* =============================================================================
+   البانر التحذيري — تحذير، لا زينة. يبقى فوق كل شيء وبأعلى تباين.
+   ============================================================================ */
+.staging {
+  position: sticky; top: 0; z-index: 2147483647;
+  background: #7e1717;
+  border-bottom: 2px solid #f3cccc;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  flex-wrap: wrap;
+  padding: 7px 14px;
+  font-size: 13px; font-weight: 700; line-height: 1.55;
+  text-align: center;
+}
+.staging::before, .staging::after { display: none; }
+@media (min-width: 640px) {
+  .staging::before, .staging::after {
+    content: ""; display: block; flex: 1 1 24px; max-width: 110px; height: 10px;
+    background: repeating-linear-gradient(45deg, #fff 0 6px, #7e1717 6px 12px);
+  }
+}
+.staging-chip {
+  background: #fff; color: #7e1717; border-radius: 4px;
+  padding: 1px 8px; font-weight: 800; font-size: 12px;
+  font-family: var(--f-num); letter-spacing: .1em; white-space: nowrap;
+}
+
+/* =============================================================================
+   الترويسة
+   ============================================================================ */
+.hdr {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--ink);
+  color: var(--fg-on-ink);
+}
+.hdr::after {   /* الخيط الذهبي — توقيع الدار */
+  content: ""; display: block; height: 1px;
+  background: linear-gradient(to left, transparent, var(--gold) 22%, var(--gold) 78%, transparent);
+  opacity: .6;
+}
+.hdr-in {
+  max-width: 1180px; margin: 0 auto;
+  padding: 6px var(--gutter);
+  display: flex; align-items: center; gap: 4px;
+}
+.brand { margin-inline-end: auto; display: flex; align-items: baseline; gap: 9px; min-height: var(--tap); }
+.brand b { font-family: var(--f-display); font-size: 27px; font-weight: 700; line-height: 1; color: var(--fg-on-ink); }
+.brand span {
+  font-family: var(--f-num); font-size: 10px; letter-spacing: .22em;
+  color: var(--gold); font-weight: 700; transform: translateY(-2px);
+}
 .icon-btn {
-  min-width: var(--tap); min-height: var(--tap); display: inline-flex; align-items: center;
-  justify-content: center; gap: 6px; background: none; border: 1px solid var(--line);
-  border-radius: 12px; cursor: pointer; padding: 0 10px;
+  min-width: var(--tap); min-height: var(--tap);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; border: 1px solid transparent; border-radius: 12px;
+  color: var(--fg-on-ink); cursor: pointer; padding: 0 10px; font-size: 17px;
+  transition: background .18s var(--ease), border-color .18s var(--ease);
 }
-.badge { background: var(--accent); color: var(--accent-fg); border-radius: 999px; font-size: 11px; padding: 1px 7px; }
+.icon-btn:hover { background: rgba(255,255,255,.08); border-color: var(--line-ink); }
+.badge {
+  background: var(--gold); color: #241708; border-radius: 999px;
+  font-size: 11px; font-weight: 800; padding: 0 6px; min-width: 18px; text-align: center;
+  font-family: var(--f-num); line-height: 1.6;
+}
 
-.field {
-  width: 100%; min-height: var(--tap); padding: 10px 14px;
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--soft);
+/* الأزرار داخل الورق ترث لون الورق لا لون الحبر. */
+.wrap .icon-btn { color: var(--fg); border-color: var(--line); background: #fff; font-size: 15px; }
+.wrap .icon-btn:hover { background: var(--plum-soft); border-color: var(--plum-text); }
+
+/* =============================================================================
+   العمود الورقي — كامل العرض على الجوال، ويطفو داخل العلبة على الشاشة الكبيرة
+   ============================================================================ */
+.wrap {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 20px var(--gutter) 110px;
+  background: var(--paper);
+  min-height: 70vh;
+  animation: rise .34s var(--ease) both;
 }
-.field:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (min-width: 720px) {
+  .wrap {
+    max-width: 1080px;
+    margin: 26px auto 34px;
+    padding: 34px 40px 64px;
+    border-radius: 20px;
+    box-shadow: 0 40px 90px -50px #000;
+  }
+}
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* القوائم الطويلة تُقرأ عمودين على الشاشة الواسعة بدل سطر ممدود. */
+@media (min-width: 900px) {
+  .list-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.foot {
+  max-width: 1180px; margin: 0 auto;
+  padding: 16px var(--gutter) 32px;
+  color: var(--muted-on-ink); font-size: 12px; text-align: center; line-height: 1.7;
+}
+
+/* =============================================================================
+   الطباعة
+   ============================================================================ */
+h1 {
+  font-family: var(--f-display);
+  text-wrap: balance;
+  font-size: clamp(25px, 6.2vw, 33px);
+  font-weight: 700; line-height: 1.45;
+  margin: 2px 0 6px;
+  color: var(--fg);
+}
+h2 {
+  font-family: var(--f-display);
+  font-size: 19px; font-weight: 700; line-height: 1.55;
+  margin: 28px 0 10px;
+  color: var(--fg);
+}
+h1 + p, h2 + p { margin-top: 0; }
+p { margin: 8px 0; }
+.muted { color: var(--fg-muted); }
+.small { font-size: 14px; }
+.tiny  { font-size: 13px; line-height: 1.7; }
+.lede { font-size: 15px; color: var(--fg-muted); max-width: 60ch; }
+
+/* عنوان القسم: كلمة ثم خيط. الخيط يفصل، ولا يزيّن. */
+.eyebrow {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 700; color: var(--gold-lo);
+  margin: 28px 0 10px;
+}
+.eyebrow::after { content: ""; flex: 1; height: 1px; background: linear-gradient(to left, transparent, var(--line)); }
+
+/* الأرقام والأسعار: أرقام جدولية كي تصطفّ بجانب العربية بلا اهتزاز. */
+.num, .price, .badge {
+  font-family: var(--f-num);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: normal;
+}
+.price { font-weight: 700; white-space: nowrap; }
+.price-lg { font-size: 23px; line-height: 1.35; }
+.price-na { font-weight: 700; color: var(--danger); font-size: 14px; }
+
+/* =============================================================================
+   الأسطح
+   ============================================================================ */
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+a.card, button.card { display: block; width: 100%; text-align: start; cursor: pointer; }
+a.card, button.card, .tile { transition: border-color .18s var(--ease), transform .18s var(--ease); }
+a.card:hover, button.card:hover { border-color: var(--plum-text); transform: translateY(-1px); }
+
+.panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-2); padding: 16px; }
+
+.grid { display: grid; gap: 12px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.row { display: flex; align-items: center; gap: 10px; }
+
+/* سطر مجموع: الاسم يمين، الرقم يسار، والفاصل بينهما. */
+.sum { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; }
+.sum + .sum { border-top: 1px dashed var(--line); }
+.sum > span:first-child { color: var(--fg-muted); font-size: 14px; }
+.sum > :last-child { margin-inline-start: auto; }
+.sum.total { border-top: 1px solid var(--gold); margin-top: 6px; padding-top: 12px; }
+.sum.total > span:first-child { color: var(--fg); font-weight: 700; font-size: 16px; }
+
+/* =============================================================================
+   إطار الصورة — البطل الحقيقي.
+   لا صور في هذه البيئة بعد: يُرسم رفّ زجاجي حبريّ بحرف «ر» ذهبي خافت.
+   يوم تصل الصور: <img> داخل .media يغطّي البديل ويُخفيه من تلقائه.
+   ============================================================================ */
+.media {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 6%, #382c46 0%, var(--ink-2) 46%, var(--ink) 100%);
+  border: 1px solid var(--ink-3);
+  display: grid; place-items: center;
+  isolation: isolate;
+}
+.media > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 3; }
+.media .flacon {
+  width: 46%; max-width: 190px; height: auto;
+  color: var(--gold); opacity: .5; z-index: 2;
+}
+@media (min-width: 720px) { .media { aspect-ratio: 4 / 5; } }
+.media::before {   /* أرضية الخزانة — خيط ذهبي واحد تحت القارورة */
+  content: ""; position: absolute; inset-inline: 18%; bottom: 16%; height: 1px;
+  background: linear-gradient(to left, transparent, var(--gold), transparent);
+  opacity: .32; z-index: 1;
+}
+.media::after {    /* لمعة زجاج مائلة، ساكنة وخافتة */
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(115deg, transparent 34%, rgba(255,255,255,.09) 46%, transparent 58%);
+}
+.media.thumb { aspect-ratio: 1; width: 64px; flex: 0 0 64px; border-radius: var(--radius-s); }
+.media.thumb .flacon { width: 44%; opacity: .55; }
+.media.thumb::before { display: none; }
+.media-cap { font-size: 12px; color: var(--fg-muted); margin-top: 8px; text-align: center; }
+
+/* =============================================================================
+   البطل — اللحظة الحبرية الوحيدة في المتجر
+   ============================================================================ */
+.hero {
+  position: relative;
+  margin: -20px calc(var(--gutter) * -1) 22px;
+  padding: 28px var(--gutter) 26px;
+  background: radial-gradient(130% 130% at 78% 0%, #3d2e50 0%, var(--ink-2) 46%, var(--ink) 100%);
+  color: var(--fg-on-ink);
+  overflow: hidden;
+}
+@media (min-width: 720px) {
+  .hero { margin: -34px -40px 30px; padding: 54px 40px 46px; border-radius: 19px 19px 0 0; }
+}
+.hero h1 { color: var(--fg-on-ink); margin: 12px 0 10px; font-size: clamp(27px, 6.6vw, 40px); }
+.hero p { color: var(--muted-on-ink); margin: 0; max-width: 46ch; font-size: 15px; }
+.hero .eyebrow { color: var(--gold); margin: 0; font-size: 12px; }
+.hero .eyebrow::after { background: linear-gradient(to left, transparent, rgba(198,154,76,.55)); }
+.hero-flacon {
+  display: none;
+  position: absolute; inset-inline-start: 6%; bottom: -18px;
+  width: 150px; color: var(--gold); opacity: .3;
+}
+@media (min-width: 720px) { .hero-flacon { display: block; } }
+.hero-thread {   /* الخيط الذهبي يُرسَم عند الدخول — الحركة الوحيدة الملحوظة */
+  position: absolute; inset-inline: 0; bottom: 0; height: 1px;
+  background: linear-gradient(to left, transparent, var(--gold), transparent);
+  transform-origin: right center;
+  animation: thread .9s var(--ease) .1s both;
+}
+@keyframes thread { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: .85; } }
+
+/* =============================================================================
+   الحقول والأزرار
+   ============================================================================ */
+label { display: block; }
+.field {
+  width: 100%; min-height: var(--tap);
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: #fff; color: var(--fg);
+  transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
+}
+.field::placeholder { color: #6d6675; }
+.field:focus { outline: none; border-color: var(--plum-text); box-shadow: 0 0 0 3px rgba(89, 53, 121, .18); }
 
 .btn {
-  min-height: var(--tap); padding: 10px 16px; border-radius: var(--radius);
-  border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg);
+  min-height: var(--tap);
+  padding: 12px 18px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--ink);
+  background: var(--ink); color: var(--fg-on-ink);
   cursor: pointer; font-weight: 700; width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  text-align: center;
+  transition: background .18s var(--ease), border-color .18s var(--ease), transform .12s var(--ease);
 }
-.btn[disabled] { opacity: .45; cursor: not-allowed; }
+.btn:hover { background: var(--plum); border-color: var(--plum); }
+.btn:active { transform: translateY(1px); }
+.btn[disabled] {
+  background: var(--paper-2); color: var(--fg-muted);
+  border-color: var(--line); cursor: not-allowed;
+}
 .btn.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn.ghost:hover { background: var(--plum-soft); border-color: var(--plum-text); color: var(--plum-text); }
+.btn.ghost[disabled] { background: transparent; color: var(--fg-muted); }
+/* المختار — بنفسجي بخيط ذهبي، بلا توهّج. */
+.btn.sel { background: var(--plum); border-color: var(--gold); color: var(--fg-on-ink); }
+.btn.sel:hover { background: var(--plum); }
 
-.card { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--bg); }
-.grid { display: grid; gap: 10px; }
-.grid.two { grid-template-columns: 1fr 1fr; }
-.row { display: flex; align-items: center; gap: 10px; }
-.muted { color: var(--muted); }
-.small { font-size: 13px; }
-.tiny { font-size: 12px; }
-h1 { font-size: 20px; margin: 18px 0 10px; }
-h2 { font-size: 16px; margin: 18px 0 8px; }
+/* النماذج لا تُمَدّ عبر الشاشة: عمود قراءة واحد مهما اتّسعت النافذة. */
+.form { max-width: 620px; }
 
-.tile { display: block; border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; background: var(--soft); min-height: 72px; }
-.tile strong { display: block; }
+/* شريط الإجراء السفلي — الشراء في متناول الإبهام على الجوال. */
+.actionbar {
+  position: sticky; bottom: 0; z-index: 15;
+  margin: 22px calc(var(--gutter) * -1) 0;
+  padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom));
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+@media (min-width: 720px) {
+  .actionbar { position: static; margin: 24px 0 0; padding: 0; background: none; border-top: none; }
+  .actionbar .btn { max-width: 340px; }
+}
 
-.placeholder-price { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
-.state { text-align: center; padding: 36px 16px; }
-.sk { background: linear-gradient(90deg,#eee,#f6f6f6,#eee); border-radius: 10px; height: 64px; animation: sk 1.2s infinite; }
-@keyframes sk { 0%{opacity:.7} 50%{opacity:1} 100%{opacity:.7} }
-.stepbar { display: flex; gap: 6px; margin: 12px 0; }
-.step { flex: 1; height: 4px; border-radius: 999px; background: var(--line); }
-.step.on { background: var(--accent); }
+/* =============================================================================
+   الأبواب — شبكة الرئيسية. الباب الأول أوسع لأنه الرحلة الأكثر استعمالاً.
+   ============================================================================ */
+.doors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.doors > .lead { grid-column: span 2; }
+@media (min-width: 720px) {
+  .doors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .doors > .lead { grid-column: span 2; }
+}
+.tile {
+  display: flex; flex-direction: column; gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 15px 16px 16px;
+  background: #fff;
+  min-height: 102px;
+  position: relative; overflow: hidden;
+}
+.tile::before {   /* خيط ذهبي على الحافّة الابتدائية */
+  content: ""; position: absolute; inset-block: 0; inset-inline-start: 0;
+  width: 3px; background: var(--gold); opacity: 0; transition: opacity .18s var(--ease);
+}
+.tile:hover { border-color: var(--plum-text); transform: translateY(-2px); }
+.tile:hover::before { opacity: 1; }
+.tile strong { display: block; font-size: 16px; line-height: 1.5; }
+.tile .tiny { color: var(--fg-muted); }
+.tile.lead { background: var(--ink-2); border-color: var(--ink-3); color: var(--fg-on-ink); }
+.tile.lead .tiny { color: var(--muted-on-ink); }
+.tile.lead::before { opacity: 1; }
+
+/* =============================================================================
+   الحالات والتنبيهات
+   ============================================================================ */
+.state { text-align: center; padding: 46px 16px; }
+.state p:first-of-type { font-family: var(--f-display); font-size: 19px; }
+
+.sk {
+  background: linear-gradient(100deg, var(--paper-2) 30%, #fbf9f6 50%, var(--paper-2) 70%);
+  background-size: 220% 100%;
+  border-radius: var(--radius-s); height: 76px;
+  animation: sk 1.6s linear infinite;
+}
+@keyframes sk { from { background-position: 0 0; } to { background-position: -220% 0; } }
+
+/* تنبيه البيئة التجريبية داخل الصفحات (اسم الصنف قديم، والدور تحذيري). */
+.placeholder-price {
+  display: block;
+  background: #fdf4e4; color: #63430a;
+  border: 1px solid #e3c68d; border-inline-start: 3px solid var(--gold);
+  border-radius: var(--radius-s);
+  padding: 10px 13px; font-size: 13px; font-weight: 700; line-height: 1.65;
+  margin: 12px 0;
+}
+
+.stepbar { display: flex; gap: 6px; margin: 14px 0 18px; }
+.step { flex: 1; height: 3px; border-radius: 999px; background: var(--line); transition: background .3s var(--ease); }
+.step.on { background: var(--gold); }
+
+.tag {
+  display: inline-block; font-size: 12px; font-weight: 700; line-height: 1.7;
+  border-radius: 999px; padding: 1px 10px;
+  background: var(--plum-soft); color: var(--plum-text);
+}
+.tag.warn { background: var(--danger-bg); color: var(--danger); }
+.tag.ok { background: #e4f0e9; color: var(--ok); }
+.tag.flat { background: var(--paper-2); color: var(--fg-muted); font-family: var(--f-num); }
+
+/* صنف نفد أو بلا سعر: يُخفَّض بلا أن يصير غير مقروء. */
+.sold-out .media { filter: grayscale(1); opacity: .75; }
+
+/* =============================================================================
+   لوحة الإدارة — نفس الدار، بصوت أخفض: بلا بطل، بلا ذهب عريض، كثافة أعلى.
+   ============================================================================ */
+.admin h1 { font-size: clamp(22px, 5.2vw, 27px); }
+.admin .card { box-shadow: none; border-radius: var(--radius-s); }
+.admin .eyebrow { color: var(--fg-muted); }
+.admin-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin: 0 0 16px;
+  background: var(--ink-2); color: var(--fg-on-ink);
+  border-radius: var(--radius-s); border: 1px solid var(--ink-3);
+  font-size: 13px; line-height: 1.6;
+}
+.admin-bar .lat { color: var(--gold); font-size: 11px; }
+.admin-bar .spacer { margin-inline-start: auto; }
+.admin-bar button {
+  background: transparent; border: 1px solid var(--line-ink); color: var(--fg-on-ink);
+  border-radius: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; min-height: 36px;
+}
+.admin-bar button:hover { background: rgba(255,255,255,.08); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  min-height: 40px; padding: 6px 14px;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: #fff; color: var(--fg); cursor: pointer;
+  font-size: 13px; font-weight: 600; width: auto;
+  font-family: var(--f-num);
+  transition: background .16s var(--ease), border-color .16s var(--ease);
+}
+.chip:hover { border-color: var(--plum-text); background: var(--plum-soft); }
+.chip.sel { background: var(--plum); border-color: var(--plum); color: var(--fg-on-ink); }
+.chip[disabled] { opacity: .55; cursor: not-allowed; }
+
+/* =============================================================================
+   حركة خفيفة فقط — وتُطفأ كلياً عند طلب المستخدم.
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =============================================================================
+   صفحة المنتج — الصورة تقود، والمعلومة تتبع.
+   ============================================================================ */
+.product { display: grid; gap: 20px; }
+.product-media { margin-top: 4px; }
+@media (min-width: 720px) {
+  .product { grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 44px; align-items: start; }
+  .product-media { position: sticky; top: 92px; }
+  .product-info h1 { margin-top: 0; }
+}

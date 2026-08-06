@@ -54,7 +54,8 @@ export default function Checkout() {
       <>
         <h1>{result.paid ? "تم الطلب" : "لم يكتمل الدفع"}</h1>
         <div className="card" role="status">
-          <strong>رقم الطلب: {result.order.orderNumber}</strong>
+          <span className={`tag ${result.paid ? "ok" : "warn"}`}>{result.paid ? "مدفوع" : "غير مدفوع"}</span>
+          <strong style={{ display: "block", marginTop: 8 }}>رقم الطلب: <span className="num">{result.order.orderNumber}</span></strong>
           <p className="small" style={{ margin: "8px 0 0" }} data-testid="checkout-message">{result.message}</p>
           <p className="tiny muted" style={{ margin: "6px 0 0" }}>
             حالة الدفع: {result.order.paymentStatus} · حالة التصنيع: {result.order.productionStatus}
@@ -64,22 +65,25 @@ export default function Checkout() {
           <Link className="btn ghost" to="/outbox">شوف الرسائل المسجّلة</Link>
           <Link className="btn ghost" to="/admin">لوحة الإدارة</Link>
         </div>
-        <button className="btn" style={{ marginTop: 10 }} onClick={() => navigate("/")}>رجوع للرئيسية</button>
+        <div className="actionbar">
+          <button className="btn" onClick={() => navigate("/")}>رجوع للرئيسية</button>
+        </div>
       </>
     );
   }
 
   if (cart.lines.length === 0) {
     return <Empty title="ما في شي لإتمامه" hint="سلتك فاضية."
-      action={<Link className="btn" to="/" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>ابدأ التسوّق</Link>} />;
+      action={<Link className="btn" to="/" style={{ maxWidth: 240, margin: "14px auto 0" }}>ابدأ التسوّق</Link>} />;
   }
 
   return (
     <>
       <h1>إتمام الطلب</h1>
-      <p className="placeholder-price" style={{ display: "inline-block" }}>واجهة تجريبية — لا دفع حقيقي ولا رسائل</p>
+      <p className="placeholder-price">واجهة تجريبية — لا دفع حقيقي ولا رسائل</p>
 
       <form
+        className="form"
         onSubmit={async (e) => {
           e.preventDefault();
           const found = validate(form);
@@ -104,7 +108,7 @@ export default function Checkout() {
           }
         }}
       >
-        <h2>بياناتك</h2>
+        <p className="eyebrow">بياناتك</p>
         <div className="grid">
           <div>
             <label htmlFor="name" className="small muted">الاسم</label>
@@ -147,41 +151,43 @@ export default function Checkout() {
           </div>
         </div>
 
-        <h2>الملخّص</h2>
-        <div className="card">
+        <p className="eyebrow">الملخّص</p>
+        <div className="panel">
           {cart.lines.map((l) => (
-            <div key={l.id} className="row" style={{ justifyContent: "space-between" }}>
-              <span className="small">{l.title} ×{l.quantity}</span>
-              <span className="small">{money(lineTotalFils(l))}</span>
+            <div key={l.id} className="sum">
+              <span>{l.title} ×<span className="num">{l.quantity}</span></span>
+              <span className="price small">{money(lineTotalFils(l))}</span>
             </div>
           ))}
-          <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-            <span className="muted small">المجموع</span><span className="small" data-testid="checkout-subtotal">{money(totals.subtotalFils)}</span>
+          <div className="sum">
+            <span>المجموع</span><span className="price" data-testid="checkout-subtotal">{money(totals.subtotalFils)}</span>
           </div>
           {totals.discountFils > 0 && (
-            <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-              <span className="muted small">خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
-              <span className="small" data-testid="checkout-discount">−{money(totals.discountFils)}</span>
+            <div className="sum">
+              <span>خصم الكمية ({BULK_DISCOUNT_PERCENT}%)</span>
+              <span className="price" data-testid="checkout-discount">−{money(totals.discountFils)}</span>
             </div>
           )}
-          <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-            <span className="muted small">الشحن</span><span className="small" data-testid="checkout-shipping">{totals.shippingFils === 0 ? "مجاني" : money(totals.shippingFils)}</span>
+          <div className="sum">
+            <span>الشحن</span><span className="price" data-testid="checkout-shipping">{totals.shippingFils === 0 ? "مجاني" : money(totals.shippingFils)}</span>
           </div>
-          <div className="row" style={{ justifyContent: "space-between", marginTop: 6 }}>
-            <strong>الإجمالي</strong><strong style={{ fontSize: 20 }} data-testid="checkout-total">{money(totals.totalFils)}</strong>
+          <div className="sum total">
+            <span>الإجمالي</span><strong className="price price-lg" data-testid="checkout-total">{money(totals.totalFils)}</strong>
           </div>
         </div>
 
-        <h2>نتيجة الدفع التجريبي</h2>
+        <p className="eyebrow">نتيجة الدفع التجريبي</p>
         <p className="tiny muted" style={{ marginTop: 0 }}>staging فقط: اختر النتيجة كي يُختبر المساران.</p>
         <div className="grid two">
-          <button type="button" className={`btn ${outcome === "success" ? "" : "ghost"}`} onClick={() => setOutcome("success")} data-testid="outcome-success">نجاح الدفع</button>
-          <button type="button" className={`btn ${outcome === "failure" ? "" : "ghost"}`} onClick={() => setOutcome("failure")} data-testid="outcome-failure">فشل الدفع</button>
+          <button type="button" className={`btn ${outcome === "success" ? "sel" : "ghost"}`} onClick={() => setOutcome("success")} data-testid="outcome-success">نجاح الدفع</button>
+          <button type="button" className={`btn ${outcome === "failure" ? "sel" : "ghost"}`} onClick={() => setOutcome("failure")} data-testid="outcome-failure">فشل الدفع</button>
         </div>
 
-        <button className="btn" style={{ marginTop: 14 }} type="submit" disabled={busy}>
-          {busy ? "جاري المعالجة…" : "ادفع (تجريبي)"}
-        </button>
+        <div className="actionbar">
+          <button className="btn" type="submit" disabled={busy}>
+            {busy ? "جاري المعالجة…" : "ادفع (تجريبي)"}
+          </button>
+        </div>
       </form>
     </>
   );

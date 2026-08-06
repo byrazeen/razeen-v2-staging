@@ -24,14 +24,15 @@ export function AdminGate({ children }: { children: ReactNode }) {
   if (signedIn) {
     return (
       <>
-        <p className="placeholder-price" style={{ display: "block" }}>
-          ⚠️ لوحة إدارة تجريبية — دخول وهمي بلا مصادقة حقيقية · staging mock sign-in, NOT real auth
-        </p>
+        <div className="admin-bar">
+          <span className="lat">STAGING ADMIN</span>
+          <span>دخول وهمي بلا مصادقة حقيقية — mock sign-in, NOT real auth</span>
+          <button className="spacer"
+            onClick={() => { window.sessionStorage.removeItem(KEY); setSignedIn(false); }}>
+            خروج
+          </button>
+        </div>
         {children}
-        <button className="btn ghost" style={{ marginTop: 20 }}
-          onClick={() => { window.sessionStorage.removeItem(KEY); setSignedIn(false); }}>
-          خروج
-        </button>
       </>
     );
   }
@@ -39,8 +40,8 @@ export function AdminGate({ children }: { children: ReactNode }) {
   return (
     <>
       <h1>دخول لوحة الإدارة</h1>
-      <p className="placeholder-price" style={{ display: "block" }}>
-        ⚠️ دخول وهمي لأغراض الاختبار فقط — لا يوجد مستخدمون ولا صلاحيات حقيقية.
+      <p className="placeholder-price">
+        دخول وهمي لأغراض الاختبار فقط — لا يوجد مستخدمون ولا صلاحيات حقيقية.
       </p>
       <form
         onSubmit={(e) => {
@@ -49,7 +50,8 @@ export function AdminGate({ children }: { children: ReactNode }) {
           window.sessionStorage.setItem(KEY, "1");
           setSignedIn(true);
         }}
-        style={{ marginTop: 12 }}
+        className="form"
+        style={{ marginTop: 16 }}
       >
         <label htmlFor="admin-code" className="small muted">رمز الدخول التجريبي (staging)</label>
         <input id="admin-code" className="field" value={code} onChange={(e) => setCode(e.target.value)} style={{ marginTop: 6 }} />

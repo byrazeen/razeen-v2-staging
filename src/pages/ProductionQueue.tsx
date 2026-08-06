@@ -26,16 +26,19 @@ export default function ProductionQueue() {
         empty={<Empty title="ما في طلبات مدفوعة" hint="لن يظهر أي طلب هنا قبل نجاح الدفع." />}
       >
         {(orders) => (
-          <div className="grid" style={{ marginTop: 12 }} data-testid="queue-list">
+          <div className="grid list-2" style={{ marginTop: 12 }} data-testid="queue-list">
             {/* حزام أمان: حتى لو تغيّر التنفيذ يوماً، غير المدفوع لا يُرسم. */}
             {orders.filter(isProductionEligible).map((o) => (
               <Link key={o.orderNumber} to={`/admin/orders/${o.orderNumber}`} className="card">
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <strong>{o.orderNumber}</strong>
-                  <span style={{ fontWeight: 700 }}>{formatFils(o.totalFils)}</span>
+                <div className="row">
+                  <strong className="num">{o.orderNumber}</strong>
+                  <span className="price" style={{ marginInlineStart: "auto" }}>{formatFils(o.totalFils)}</span>
                 </div>
                 <span className="tiny muted" style={{ display: "block" }}>{o.customer.name} · {o.customer.address.emirate}</span>
-                <span className="tiny" style={{ display: "block", marginTop: 4 }}>التصنيع: {o.productionStatus} · الشحن: {o.shippingStatus}</span>
+                <div className="chips" style={{ margin: "10px 0" }}>
+                  <span className="tag flat">التصنيع: {o.productionStatus}</span>
+                  <span className="tag flat">الشحن: {o.shippingStatus}</span>
+                </div>
                 {o.lines.map((l) => (
                   <span key={l.id} className="tiny muted" style={{ display: "block" }}>
                     • {l.title} ×{l.quantity}{l.perfumeCode ? ` · ${l.perfumeCode}` : ""}{l.size ? ` · ${l.size}` : ""}
@@ -47,7 +50,7 @@ export default function ProductionQueue() {
         )}
       </Async>
 
-      <Link className="btn ghost" to="/admin" style={{ display: "inline-block", marginTop: 14 }}>رجوع للطلبات</Link>
+      <Link className="chip" to="/admin" style={{ display: "inline-flex", alignItems: "center", marginTop: 18 }}>رجوع للطلبات</Link>
     </AdminGate>
   );
 }

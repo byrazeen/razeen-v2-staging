@@ -26,7 +26,7 @@ export function ErrorState({ title = "صار خطأ", hint, onRetry }: { title?:
     <div className="state" role="alert">
       <p style={{ fontWeight: 700, marginBottom: 6 }}>{title}</p>
       {hint && <p className="muted small" style={{ marginTop: 0 }}>{hint}</p>}
-      {onRetry && <button className="btn ghost" onClick={onRetry} style={{ maxWidth: 220, margin: "10px auto 0" }}>حاول مرة ثانية</button>}
+      {onRetry && <button className="btn ghost" onClick={onRetry} style={{ maxWidth: 220, margin: "14px auto 0" }}>حاول مرة ثانية</button>}
     </div>
   );
 }
@@ -56,5 +56,5 @@ export function Async<T>({
 /** رسالة تحقّق تحت حقل. */
 export function FieldError({ message }: { message?: string }) {
   if (!message) return null;
-  return <p className="tiny" role="alert" style={{ color: "#991b1b", margin: "4px 0 0" }}>{message}</p>;
+  return <p className="tiny" role="alert" style={{ color: "var(--danger)", margin: "4px 0 0", fontWeight: 700 }}>{message}</p>;
 }
