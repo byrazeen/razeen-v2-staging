@@ -23,7 +23,9 @@ export const activeRepository: RazeenRepository =
   repositorySource === "supabase"
     ? createSupabaseRepository({
         client: getSupabaseClient(),
-        // مسار الطلب يحتاج جلسة موثّقة تحت RLS؛ بلا جلسة يبقى محلياً كما كان.
+        // مسار الطلب يحتاج `auth.uid()`، وتوفيره صار مسؤولية `anonSession`:
+        // جلسة مجهولة دائمة تُنشأ مرة واحدة لكل متصفّح. هذا البديل لا يعمل إلا
+        // حين تتعذّر تلك الجلسة أصلاً — وهي حالة معلنة لا الحالة العادية.
         sessionScopedFallback: mockRepository,
       })
     : mockRepository;

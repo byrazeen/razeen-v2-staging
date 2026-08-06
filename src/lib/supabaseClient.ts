@@ -6,12 +6,15 @@
  * بمشروع غير مُثبت أنه staging ممنوع قبل أن يقع لا بعده.
  *
  * لماذا `@supabase/postgrest-js` مباشرةً بدل مظلّة `@supabase/supabase-js`؟
- * لأن التطبيق لا يستعمل من المظلّة إلا `.from()`. لا `channel(` ولا realtime
- * ولا storage ولا `functions.invoke` ولا `rpc(` في أي ملف تحت `src/`، ولا
- * تسجيل دخول في أي شاشة — فما من جلسة تُقرأ أصلاً. ومع ذلك كان استيراد
- * `createClient` يجرّ auth-js وrealtime-js وstorage-js وphoenix وfunctions-js
- * إلى الحزمة (~292 kB من 449 kB) بلا سطر واحد ينفّذها، ولا يقدر هزّ الشجرة
- * على إسقاطها لأنها كلها مركّبة داخل باني العميل. فالحلّ أن نطلب ما نستعمله.
+ * لأن التطبيق لا يستعمل من المظلّة إلا `.from()` و`.rpc()`. لا `channel(` ولا
+ * realtime ولا storage ولا `functions.invoke` في أي ملف تحت `src/`. ومع ذلك
+ * كان استيراد `createClient` يجرّ realtime-js وstorage-js وphoenix
+ * وfunctions-js إلى الحزمة بلا سطر واحد ينفّذها، ولا يقدر هزّ الشجرة على
+ * إسقاطها لأنها كلها مركّبة داخل باني العميل. فالحلّ أن نطلب ما نستعمله.
+ *
+ * والمصادقة عادت — لكن وحدها: `@supabase/auth-js` مطلوبة بالاسم في
+ * `@/lib/anonSession` لأن كل مسار الطلب صار خلف `auth.uid()`. الرمز الذي
+ * تصنعه يُركَّب على كل طلب PostgREST هنا، فترى السياسات مستخدماً حقيقياً.
  *
  * No URL and no key is written in this file. Every value comes from
  * `import.meta.env`. The client is created only after the environment guard
@@ -19,6 +22,7 @@
  * instead of quietly building a client on `undefined`.
  */
 import { PostgrestClient } from "@supabase/postgrest-js";
+import { currentAccessToken } from "@/lib/anonSession";
 import { findViolations } from "@/config/envGuard";
 import { stagingEnv, stagingHost } from "@/config/stagingEnv";
 
@@ -73,7 +77,21 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise
     ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (AbortSignal as any).any?.([init.signal, timeout]) ?? timeout
     : timeout;
-  return fetch(input, { ...init, signal });
+
+  // رمز الجلسة يُقرأ عند كل طلب لا مرة واحدة عند بناء العميل.
+  //
+  // هذا ليس تفصيلاً: `PostgrestClient` يجمّد ترويساته وقت الإنشاء، والجلسة
+  // تُجدَّد تلقائياً كل ساعة. لو نُسخ الرمز مرة واحدة لبقيت كل الطلبات تحمل
+  // رمزاً منتهياً بعد الساعة الأولى، وRLS ترى `auth.uid()` فارغاً فتُعيد
+  // سلةً فارغة وطلبات صفر — وهو أسوأ من خطأ لأنه يبدو حالةً صحيحة.
+  //
+  // وبلا جلسة يبقى مفتاح النشر كما هو: الرفّ العام مقروء لـanon، ولا شيء من
+  // مسار الطلب مقروء له — بحكم السياسات لا بحكم شرط هنا.
+  const token = currentAccessToken();
+  const headers = new Headers(init?.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  return fetch(input, { ...init, headers, signal });
 }
 
 /**

@@ -9,7 +9,7 @@ import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/lib/cart";
 import { formatFils, lineTotalFils, BULK_DISCOUNT_PERCENT } from "@/lib/pricing";
-import { placeOrder, type CheckoutResult } from "@/lib/orderFlow";
+import { newIdempotencyKey, placeOrder, type CheckoutResult } from "@/lib/orderFlow";
 import { setMockPaymentOutcome, type MockPaymentOutcome } from "@/adapters/mock";
 import { Empty, FieldError } from "@/components/states";
 import { OrderNumber, ProseWithOrderNumbers } from "@/components/text";
@@ -46,6 +46,12 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CheckoutResult | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  /**
+   * مفتاح هذه المحاولة — يُولَّد مرة واحدة عند فتح الشاشة ويبقى كما هو عبر كل
+   * إرسال. النقرة الثانية على «ادفع»، أو إعادة الإرسال بعد انقطاع، تصل إلى
+   * `place_order` بالمفتاح نفسه فتُعيد الطلب الأول ولا تُنشئ ثانياً.
+   */
+  const idempotencyKey = useRef<string>(newIdempotencyKey());
 
   const totals = cart.totals;
   const money = formatFils;
@@ -98,7 +104,14 @@ export default function Checkout() {
               <button
                 className="btn"
                 data-testid="retry-payment"
-                onClick={() => { setResult(null); navigate("/checkout"); }}
+                onClick={() => {
+                  // محاولة جديدة = مفتاح جديد. المفتاح القديم يحرس ضدّ الإرسال
+                  // المزدوج لنفس المحاولة، لا ضدّ محاولة أرادها العميل بعد أن
+                  // رأى الفشل — لولا ذلك لأعاد له النظام الطلب الفاشل نفسه أبداً.
+                  idempotencyKey.current = newIdempotencyKey();
+                  setResult(null);
+                  navigate("/checkout");
+                }}
               >أعد المحاولة</button>
             </div>
           </>
@@ -135,14 +148,19 @@ export default function Checkout() {
           setBusy(true);
           setMockPaymentOutcome(outcome);
           try {
-            const res = await placeOrder(cart.lines, {
-              name: form.name.trim(),
-              phone: form.phone.replace(/[\s-]/g, ""),
-              address: {
-                emirate: form.emirate, area: form.area.trim(), street: form.street.trim(),
-                building: form.building.trim(), flat: form.flat.trim() || undefined,
+            const res = await placeOrder(
+              cart.lines,
+              {
+                name: form.name.trim(),
+                phone: form.phone.replace(/[\s-]/g, ""),
+                address: {
+                  emirate: form.emirate, area: form.area.trim(), street: form.street.trim(),
+                  building: form.building.trim(), flat: form.flat.trim() || undefined,
+                },
               },
-            });
+              idempotencyKey.current,
+              outcome === "success" ? "success" : "failed"
+            );
             setResult(res);
             // السلة تُفرَّغ عند النجاح فقط — الفشل يجب أن يبقي للعميل ما يعيد المحاولة به.
             if (res.paid) cart.clear();
