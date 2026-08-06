@@ -23,23 +23,24 @@ export default function Outbox() {
 
   return (
     <>
-      <h1>صندوق الصادر (staging)</h1>
-      <p className="placeholder-price" style={{ display: "block" }}>
-        ⚠️ لم تُرسَل أي رسالة. هذه سجلات فقط · nothing here was ever sent.
+      <h1>صندوق الصادر</h1>
+      <p className="placeholder-price">
+        لم تُرسَل أي رسالة — هذه سجلات فقط.{" "}
+        <span dir="ltr" style={{ display: "inline-block" }}>Nothing here was ever sent.</span>
       </p>
-      <p className="tiny muted">{entries} سجل</p>
+      <p className="eyebrow"><span className="num">{entries}</span> سجل</p>
 
       {list.length === 0 ? (
         <Empty title="ما في رسائل بعد" hint="أكمل طلباً وسترى تأكيد الطلب وإيصال الدفع هنا." />
       ) : (
         <>
-          <button className="btn ghost" style={{ margin: "10px 0" }} onClick={clearOutbox}>تفريغ السجل</button>
-          <div className="grid">
+          <button className="chip" style={{ margin: "0 0 14px" }} onClick={clearOutbox}>تفريغ السجل</button>
+          <div className="grid list-2">
             {list.map((e, i) => (
               <div key={`${e.at}-${i}`} className="card">
-                <div className="row" style={{ justifyContent: "space-between" }}>
+                <div className="row">
                   <strong className="small">{CHANNEL_LABEL[e.channel ?? ""] ?? e.adapter}</strong>
-                  <span className="tiny muted">{stamp(e.at)}</span>
+                  <span className="tiny muted num" style={{ marginInlineStart: "auto" }}>{stamp(e.at)}</span>
                 </div>
                 <span className="tiny muted" style={{ display: "block" }}>إلى: {e.to ?? "—"} · {e.adapter}.{e.method}</span>
                 {e.subject && <span className="small" style={{ display: "block", fontWeight: 700 }}>{e.subject}</span>}

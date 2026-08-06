@@ -21,9 +21,9 @@ export default function Admin() {
   return (
     <AdminGate>
       <h1>الطلبات</h1>
-      <div className="grid two" style={{ marginBottom: 12 }}>
-        <Link className="btn ghost" to="/admin/queue">قائمة التصنيع</Link>
-        <Link className="btn ghost" to="/outbox">صندوق الصادر</Link>
+      <div className="chips" style={{ margin: "12px 0 18px" }}>
+        <Link className="chip" to="/admin/queue">قائمة التصنيع</Link>
+        <Link className="chip" to="/outbox">صندوق الصادر</Link>
       </div>
 
       <Async
@@ -33,23 +33,27 @@ export default function Admin() {
       >
         {(orders) => (
           <>
-            <button className="btn ghost" style={{ marginBottom: 12 }} data-testid="export-csv"
+            <button className="chip" style={{ marginBottom: 14 }} data-testid="export-csv"
               onClick={() => downloadCsv(`razeen-staging-orders-${new Date().toISOString().slice(0, 10)}.csv`, ordersToCsv(orders))}>
               تصدير CSV ({orders.length} طلب)
             </button>
-            <div className="grid">
+            <div className="grid list-2">
               {orders.map((o) => (
                 <Link key={o.orderNumber} to={`/admin/orders/${o.orderNumber}`} className="card">
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <strong>{o.orderNumber}</strong>
-                    <span style={{ fontWeight: 700 }}>{formatFils(o.totalFils)}</span>
+                  <div className="row">
+                    <strong className="num">{o.orderNumber}</strong>
+                    <span className="price" style={{ marginInlineStart: "auto" }}>{formatFils(o.totalFils)}</span>
                   </div>
                   <span className="tiny muted" style={{ display: "block" }}>
-                    {o.customer.name} · {o.customer.phone} · {o.customer.address.emirate}
+                    {o.customer.name} · <span className="num">{o.customer.phone}</span> · {o.customer.address.emirate}
                   </span>
-                  <span className="tiny" style={{ display: "block", marginTop: 4 }}>
-                    الدفع: {PAYMENT_LABEL[o.paymentStatus] ?? o.paymentStatus} · التصنيع: {o.productionStatus} · الشحن: {o.shippingStatus}
-                  </span>
+                  <div className="chips" style={{ marginTop: 10 }}>
+                    <span className={`tag ${o.paymentStatus === "paid" ? "ok" : "warn"}`}>
+                      {PAYMENT_LABEL[o.paymentStatus] ?? o.paymentStatus}
+                    </span>
+                    <span className="tag flat">التصنيع: {o.productionStatus}</span>
+                    <span className="tag flat">الشحن: {o.shippingStatus}</span>
+                  </div>
                 </Link>
               ))}
             </div>

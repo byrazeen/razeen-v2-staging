@@ -13,6 +13,7 @@ import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/lib/cart";
 import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL, FILS_PER_AED } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
+import { Media } from "@/components/Media";
 
 const QUESTIONS = [
   { key: "family", label: "أي جو تحب؟", options: [
@@ -53,11 +54,12 @@ export default function Discover() {
     return (
       <>
         <h1>نلقى لك عطرك</h1>
+        <p className="lede">ثلاثة أسئلة، وكل سؤال يمكن تخطّيه. لا نرشّح إلا ما هو متوفر الآن.</p>
         <div className="stepbar" aria-hidden="true">
           {QUESTIONS.map((_, i) => <span key={i} className={`step ${i <= step ? "on" : ""}`} />)}
         </div>
         <p className="tiny muted">سؤال {step + 1} من {QUESTIONS.length}</p>
-        <h2>{q.label}</h2>
+        <h2 style={{ marginTop: 18 }}>{q.label}</h2>
         <div className="grid two">
           {q.options.map((o) => (
             <button key={o.value} className="btn ghost"
@@ -80,18 +82,21 @@ export default function Discover() {
             <Empty title="ما عندنا شي متوفر يناسب اختيارك الحين" hint="جرّب العطر المخصص."
               action={<Link className="btn" to="/custom" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>صمّم عطرك</Link>} />
           ) : (
-            <div className="grid">
+            <div className="grid list-2">
               {picks.map(({ p, why }) => {
                 const priceFils = readyMadePriceFils(p.priceFils);
                 return (
                   <div key={p.handle} className="card">
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <Link to={`/product/${p.handle}`}><strong>{p.title}</strong></Link>
-                      <span style={{ fontWeight: 700 }}>{priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}</span>
+                    <div className="row" style={{ gap: 14, alignItems: "flex-start" }}>
+                      <Media size="thumb" label={p.title} />
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <Link to={`/product/${p.handle}`}><strong style={{ display: "block" }}>{p.title}</strong></Link>
+                        {/* السبب معروض دائماً — الترشيح بلا تعليل لا يُقنع أحداً */}
+                        <span className="tiny muted">ليش رشّحناه: {why.join(" · ")}</span>
+                      </span>
+                      <span className={priceFils === null ? "price-na" : "price"}>{priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}</span>
                     </div>
-                    {/* السبب معروض دائماً — الترشيح بلا تعليل لا يُقنع أحداً */}
-                    <p className="tiny muted" style={{ margin: "6px 0 0" }}>ليش رشّحناه: {why.join(" · ")}</p>
-                    <button className="btn" style={{ marginTop: 10 }} disabled={priceFils === null}
+                    <button className="btn" style={{ marginTop: 12 }} disabled={priceFils === null}
                       onClick={() => {
                         if (priceFils === null) return;
                         cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPriceFils: priceFils });
@@ -106,7 +111,7 @@ export default function Discover() {
           )
         }
       </Async>
-      <button className="btn ghost" style={{ marginTop: 14 }} onClick={() => { setStep(0); setAnswers({}); }}>ابدأ من جديد</button>
+      <button className="btn ghost" style={{ marginTop: 18 }} onClick={() => { setStep(0); setAnswers({}); }}>ابدأ من جديد</button>
     </>
   );
 }

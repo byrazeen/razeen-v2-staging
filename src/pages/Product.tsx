@@ -1,10 +1,16 @@
-/** تفاصيل عطر جاهز — نهاية الرحلة الأولى: يعرف الاسم، يبحث، يضيف للسلة. */
+/**
+ * تفاصيل عطر جاهز — نهاية الرحلة الأولى: يعرف الاسم، يبحث، يضيف للسلة.
+ *
+ * الصورة أولاً وأكبر عنصر في الصفحة، ثم الاسم والسعر، ثم زر الشراء في متناول
+ * الإبهام. الشحن مذكور هنا لا في آخر خطوة.
+ */
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { repository } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { useCart } from "@/lib/cart";
 import { formatFils, readyMadePriceFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
+import { Media } from "@/components/Media";
 
 export default function Product() {
   const { handle } = useParams();
@@ -17,7 +23,7 @@ export default function Product() {
       state={state}
       empty={
         <Empty title="ما لقينا هذا المنتج"
-          action={<Link className="btn ghost" to="/ready" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>تصفّح المتوفر</Link>} />
+          action={<Link className="btn ghost" to="/ready" style={{ maxWidth: 240, margin: "14px auto 0" }}>تصفّح المتوفر</Link>} />
       }
     >
       {(p) => {
@@ -25,32 +31,47 @@ export default function Product() {
         const priceFils = readyMadePriceFils(p.priceFils);
         const buyable = p.is_available && priceFils !== null;
         return (
-          <>
-            <h1>{p.title}</h1>
-            <div className="card">
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <span className="muted small">السعر</span>
-                <strong style={{ fontSize: 20 }} data-testid="product-price">{priceFils === null ? UNAVAILABLE_LABEL : formatFils(priceFils)}</strong>
-              </div>
-              <p className="tiny muted" style={{ marginBottom: 0 }}>
-                {priceFils === null ? UNAVAILABLE_LABEL : p.is_available ? `متوفر — ${p.quantity} قطعة` : UNAVAILABLE_LABEL}
-              </p>
+          <div className="product">
+            <div className="product-media">
+              <Media label={p.title} />
+              <p className="media-cap">صورة العطر تُضاف قبل الإطلاق</p>
             </div>
 
-            {/* الشحن يُعرض هنا لا في آخر خطوة — المفاجأة السعرية سبب معروف لهجر السلة */}
-            <p className="tiny muted" style={{ marginTop: 10 }}>الشحن يُحتسب في السلة · التوصيل داخل الإمارات</p>
+            <div className="product-info">
+              <h1>{p.title}</h1>
 
-            <button
-              className="btn" style={{ marginTop: 14 }} disabled={!buyable} data-testid="add-to-cart"
-              onClick={() => {
-                if (priceFils === null) return;
-                cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPriceFils: priceFils });
-                navigate("/cart");
-              }}
-            >
-              {buyable ? "أضف للسلة" : UNAVAILABLE_LABEL}
-            </button>
-          </>
+              <div className="sum" style={{ borderTop: "1px solid var(--gold)", paddingTop: 14, marginTop: 8 }}>
+                <span>السعر</span>
+                {priceFils === null
+                  ? <strong className="price-na" data-testid="product-price">{UNAVAILABLE_LABEL}</strong>
+                  : <strong className="price price-lg" data-testid="product-price">{formatFils(priceFils)}</strong>}
+              </div>
+
+              <p style={{ margin: "10px 0 0" }}>
+                {priceFils === null || !p.is_available
+                  ? <span className="tag warn">{UNAVAILABLE_LABEL}</span>
+                  : <span className="tag ok">متوفر — {p.quantity} قطعة</span>}
+              </p>
+
+              {/* الشحن يُعرض هنا لا في آخر خطوة — المفاجأة السعرية سبب معروف لهجر السلة */}
+              <p className="tiny muted" style={{ marginTop: 12 }}>
+                الشحن يُحتسب في السلة · التوصيل داخل الإمارات
+              </p>
+
+              <div className="actionbar">
+                <button
+                  className="btn" disabled={!buyable} data-testid="add-to-cart"
+                  onClick={() => {
+                    if (priceFils === null) return;
+                    cart.add({ id: `ready:${p.handle}`, kind: "ready", title: p.title, unitPriceFils: priceFils });
+                    navigate("/cart");
+                  }}
+                >
+                  {buyable ? "أضف للسلة" : UNAVAILABLE_LABEL}
+                </button>
+              </div>
+            </div>
+          </div>
         );
       }}
     </Async>

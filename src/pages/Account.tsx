@@ -19,19 +19,21 @@ export default function Account() {
         state={state}
         isEmpty={(orders: Order[]) => orders.length === 0}
         empty={<Empty title="ما عندك طلبات" hint="ابدأ من البحث أو العطور الجاهزة."
-          action={<Link className="btn" to="/" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>ابدأ التسوّق</Link>} />}
+          action={<Link className="btn" to="/" style={{ maxWidth: 240, margin: "14px auto 0" }}>ابدأ التسوّق</Link>} />}
       >
         {(orders) => (
-          <div className="grid" style={{ marginTop: 12 }}>
+          <div className="grid list-2" style={{ marginTop: 12 }}>
             {orders.map((o) => (
               <div key={o.orderNumber} className="card">
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <strong>{o.orderNumber}</strong>
-                  <span style={{ fontWeight: 700 }}>{formatFils(o.totalFils)}</span>
+                <div className="row">
+                  <strong className="num">{o.orderNumber}</strong>
+                  <span className="price" style={{ marginInlineStart: "auto" }}>{formatFils(o.totalFils)}</span>
                 </div>
-                <span className="tiny muted" style={{ display: "block" }}>
-                  الدفع: {o.paymentStatus} · التصنيع: {o.productionStatus} · الشحن: {o.shippingStatus}
-                </span>
+                <div className="chips" style={{ marginTop: 10 }}>
+                  <span className="tag flat">الدفع: {o.paymentStatus}</span>
+                  <span className="tag flat">التصنيع: {o.productionStatus}</span>
+                  <span className="tag flat">الشحن: {o.shippingStatus}</span>
+                </div>
               </div>
             ))}
           </div>
