@@ -7,6 +7,8 @@ import { repository, type Order } from "@/data/repository";
 import { useAsync } from "@/lib/useAsync";
 import { formatFils } from "@/lib/pricing";
 import { Async, Empty } from "@/components/states";
+import { OrderNumber } from "@/components/text";
+import { paymentLabel, productionLabel, shippingLabel } from "@/lib/statusLabels";
 
 export default function Account() {
   const state = useAsync(() => repository.listOrders(), []);
@@ -18,7 +20,7 @@ export default function Account() {
       <Async
         state={state}
         isEmpty={(orders: Order[]) => orders.length === 0}
-        empty={<Empty title="ما عندك طلبات" hint="ابدأ من البحث أو العطور الجاهزة."
+        empty={<Empty title="ما عندك طلبات" hint="ابدأ من البحث أو العطور الجاهزة." headingLevel={2}
           action={<Link className="btn" to="/" style={{ maxWidth: 240, margin: "14px auto 0" }}>ابدأ التسوّق</Link>} />}
       >
         {(orders) => (
@@ -26,13 +28,13 @@ export default function Account() {
             {orders.map((o) => (
               <div key={o.orderNumber} className="card">
                 <div className="row">
-                  <strong className="num">{o.orderNumber}</strong>
+                  <strong><OrderNumber>{o.orderNumber}</OrderNumber></strong>
                   <span className="price" style={{ marginInlineStart: "auto" }}>{formatFils(o.totalFils)}</span>
                 </div>
                 <div className="chips" style={{ marginTop: 10 }}>
-                  <span className="tag flat">الدفع: {o.paymentStatus}</span>
-                  <span className="tag flat">التصنيع: {o.productionStatus}</span>
-                  <span className="tag flat">الشحن: {o.shippingStatus}</span>
+                  <span className="tag flat">الدفع: {paymentLabel(o.paymentStatus)}</span>
+                  <span className="tag flat">التصنيع: {productionLabel(o.productionStatus)}</span>
+                  <span className="tag flat">الشحن: {shippingLabel(o.shippingStatus)}</span>
                 </div>
               </div>
             ))}

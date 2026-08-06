@@ -7,13 +7,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/lib/cart";
 import { formatFils, lineTotalFils, BULK_THRESHOLD_ITEMS, BULK_DISCOUNT_PERCENT } from "@/lib/pricing";
 import { Empty } from "@/components/states";
+import { arabicCount, PERFUME_FORMS } from "@/lib/arabic";
 import { Media } from "@/components/Media";
 
 export default function Cart() {
   const cart = useCart();
   const navigate = useNavigate();
   if (cart.lines.length === 0) {
-    return <Empty title="سلتك فاضية" hint="ابدأ من البحث أو العطور الجاهزة."
+    return <Empty title="سلتك فاضية" hint="ابدأ من البحث أو العطور الجاهزة." headingLevel={1}
       action={<Link className="btn" to="/" style={{ maxWidth: 240, margin: "14px auto 0" }}>ابدأ التسوّق</Link>} />;
   }
   const totals = cart.totals;
@@ -45,7 +46,7 @@ export default function Cart() {
         ))}
       </div>
 
-      <p className="eyebrow">الحساب</p>
+      <h2 className="eyebrow">الحساب</h2>
       <div className="panel">
         <div className="sum">
           <span>المجموع</span><span className="price" data-testid="cart-subtotal">{money(totals.subtotalFils)}</span>
@@ -65,7 +66,8 @@ export default function Cart() {
         </div>
         {!totals.bulkApplied && totals.itemCount > 0 && (
           <p className="tiny muted" style={{ margin: "10px 0 0" }}>
-            أضف {BULK_THRESHOLD_ITEMS - totals.itemCount} عطر ويصير الشحن مجاني مع خصم {BULK_DISCOUNT_PERCENT}%.
+            {/* «أضف 2 عطر» خطأ نحوي — المطابقة من مساعد واحد بدل حالة مكتوبة بخط اليد. */}
+            أضف {arabicCount(BULK_THRESHOLD_ITEMS - totals.itemCount, PERFUME_FORMS)} ويصير الشحن مجاني مع خصم {BULK_DISCOUNT_PERCENT}%.
           </p>
         )}
       </div>

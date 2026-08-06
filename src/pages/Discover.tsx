@@ -22,7 +22,8 @@ const QUESTIONS = [
   { key: "intensity", label: "قوة العطر؟", options: [
     { value: "1", label: "خفيف" }, { value: "2", label: "متوسط" }, { value: "3", label: "قوي" }] },
   { key: "budget", label: "الميزانية؟", options: [
-    { value: "250", label: "أقل من ٢٥٠" }, { value: "320", label: "٢٥٠–٣٢٠" }, { value: "9999", label: "ما يهم" }] },
+    // أرقام غربية كالأسعار في كل الواجهة — الخلط بين النظامين في شاشة واحدة يربك القراءة.
+    { value: "250", label: "أقل من 250" }, { value: "320", label: "250–320" }, { value: "9999", label: "ما يهم" }] },
 ] as const;
 
 export default function Discover() {
@@ -79,7 +80,7 @@ export default function Discover() {
       <Async state={state}>
         {() =>
           picks.length === 0 ? (
-            <Empty title="ما عندنا شي متوفر يناسب اختيارك الحين" hint="جرّب العطر المخصص."
+            <Empty title="ما عندنا شي متوفر يناسب اختيارك الحين" hint="جرّب العطر المخصص." headingLevel={2}
               action={<Link className="btn" to="/custom" style={{ display: "inline-block", maxWidth: 240, marginTop: 12 }}>صمّم عطرك</Link>} />
           ) : (
             <div className="grid list-2">

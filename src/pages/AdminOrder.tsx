@@ -11,6 +11,8 @@ import { formatFils, lineTotalFils, BULK_DISCOUNT_PERCENT } from "@/lib/pricing"
 import { notifyShipment } from "@/lib/orderFlow";
 import { AdminGate } from "@/components/AdminGate";
 import { Async, Empty } from "@/components/states";
+import { Iso, OrderNumber } from "@/components/text";
+import { paymentLabel, productionLabel, shippingLabel } from "@/lib/statusLabels";
 
 const PRODUCTION: ProductionStatus[] = ["not_started", "queued", "oil_ready", "mixed", "bottled", "ready"];
 const SHIPPING: ShippingStatus[] = ["not_shipped", "handed_over", "in_transit", "delivered", "returned"];
@@ -24,22 +26,22 @@ export default function AdminOrder() {
 
   return (
     <AdminGate>
-      <Async state={state} empty={<Empty title="ما لقينا هذا الطلب" action={<Link className="btn ghost" to="/admin" style={{ display: "inline-block", maxWidth: 200, marginTop: 12 }}>رجوع</Link>} />}>
+      <Async state={state} empty={<Empty title="ما لقينا هذا الطلب" headingLevel={1} action={<Link className="btn ghost" to="/admin" style={{ display: "inline-block", maxWidth: 200, marginTop: 12 }}>رجوع</Link>} />}>
         {() => {
           if (!current) return null;
           return (
             <>
-              <h1 className="num">{current.orderNumber}</h1>
+              <h1><OrderNumber>{current.orderNumber}</OrderNumber></h1>
               <div className="card">
                 <strong>{current.customer.name}</strong>
-                <span className="tiny muted num" style={{ display: "block" }}>{current.customer.phone}</span>
+                <span className="tiny muted" style={{ display: "block" }}><Iso className="num">{current.customer.phone}</Iso></span>
                 <span className="tiny muted" style={{ display: "block" }}>
                   {[current.customer.address.emirate, current.customer.address.area, current.customer.address.street,
                     current.customer.address.building, current.customer.address.flat].filter(Boolean).join(" · ")}
                 </span>
               </div>
 
-              <p className="eyebrow">الأصناف</p>
+              <h2 className="eyebrow">الأصناف</h2>
               <div className="grid">
                 {current.lines.map((l) => (
                   <div key={l.id} className="card">
@@ -76,7 +78,7 @@ export default function AdminOrder() {
                 </div>
                 <div className="sum">
                   <span>الدفع</span>
-                  <strong data-testid="payment-status">{current.paymentStatus}</strong>
+                  <strong data-testid="payment-status">{paymentLabel(current.paymentStatus)}</strong>
                 </div>
                 {!isProductionEligible(current) && (
                   <p className="tiny" style={{ color: "#991b1b", margin: "6px 0 0" }}>
@@ -85,23 +87,25 @@ export default function AdminOrder() {
                 )}
               </div>
 
-              <p className="eyebrow">حالة التصنيع</p>
-              <div className="chips">
+              <h2 className="eyebrow" id="production-label">حالة التصنيع</h2>
+              <div className="chips" role="radiogroup" aria-labelledby="production-label">
                 {PRODUCTION.map((s) => (
-                  <button key={s} className={`chip ${current.productionStatus === s ? "sel" : ""}`.trim()} disabled={busy}
+                  <button key={s} role="radio" aria-checked={current.productionStatus === s}
+                    className={`chip ${current.productionStatus === s ? "sel" : ""}`.trim()} disabled={busy}
                     onClick={async () => {
                       setBusy(true);
                       try { setOrder(await repository.setProductionStatus(current.orderNumber, s)); } finally { setBusy(false); }
                     }}>
-                    {s}
+                    {productionLabel(s)}
                   </button>
                 ))}
               </div>
 
-              <p className="eyebrow">حالة الشحن</p>
-              <div className="chips">
+              <h2 className="eyebrow" id="shipping-label">حالة الشحن</h2>
+              <div className="chips" role="radiogroup" aria-labelledby="shipping-label">
                 {SHIPPING.map((s) => (
-                  <button key={s} className={`chip ${current.shippingStatus === s ? "sel" : ""}`.trim()} disabled={busy}
+                  <button key={s} role="radio" aria-checked={current.shippingStatus === s}
+                    className={`chip ${current.shippingStatus === s ? "sel" : ""}`.trim()} disabled={busy}
                     onClick={async () => {
                       setBusy(true);
                       try {
@@ -110,11 +114,11 @@ export default function AdminOrder() {
                         setOrder(await repository.setShippingStatus(current.orderNumber, s, tracking));
                       } finally { setBusy(false); }
                     }}>
-                    {s}
+                    {shippingLabel(s)}
                   </button>
                 ))}
               </div>
-              {current.trackingNumber && <p className="tiny muted">رقم التتبّع التجريبي: <span className="num">{current.trackingNumber}</span></p>}
+              {current.trackingNumber && <p className="tiny muted">رقم التتبّع التجريبي: <OrderNumber>{current.trackingNumber}</OrderNumber></p>}
 
               <Link className="chip" to="/admin" style={{ display: "inline-flex", alignItems: "center", marginTop: 18 }}>رجوع للطلبات</Link>
             </>

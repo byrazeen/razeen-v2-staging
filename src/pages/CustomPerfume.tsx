@@ -17,6 +17,7 @@ import { search } from "@/lib/search";
 import { customPriceFils, formatFils, lineTotalFils, UNAVAILABLE_LABEL } from "@/lib/pricing";
 import { useCart } from "@/lib/cart";
 import { Async } from "@/components/states";
+import { Iso } from "@/components/text";
 import { Media } from "@/components/Media";
 
 const asSearchable = (o: CustomOil) => ({ title: `${o.brand} ${o.name}`, aliases: [o.name, o.brand, o.code] });
@@ -57,6 +58,8 @@ export default function CustomPerfume() {
       <div className="stepbar" aria-hidden="true">
         <span className={`step ${step >= 1 ? "on" : ""}`} /><span className={`step ${step >= 2 ? "on" : ""}`} />
       </div>
+      {/* الشريط مخفي عن القارئ ولم يكن له مقابل نصّي — /discover كان يفعلها وحده. */}
+      <p className="tiny muted">الخطوة {step} من 2</p>
 
       <label htmlFor="oil" className="small muted" style={{ marginTop: 14 }}>اكتب اسم العطر أو البراند</label>
       <input id="oil" className="field" value={q} placeholder="مثال: MIDNIGHT FIG أو BRAND ALPHA"
@@ -79,7 +82,7 @@ export default function CustomPerfume() {
                     <Media size="thumb" label={o.name} />
                     <span style={{ minWidth: 0 }}>
                       <strong style={{ display: "block" }}>{o.name}</strong>
-                      <span className="tiny muted">{o.brand} · {o.code}</span>
+                      <span className="tiny muted"><Iso>{o.brand}</Iso> · <Iso className="num">{o.code}</Iso></span>
                     </span>
                   </button>
                 ))}
@@ -107,33 +110,35 @@ export default function CustomPerfume() {
                   <span style={{ minWidth: 0 }}>
                     <strong style={{ display: "block" }}>{requestedName}</strong>
                     {picked
-                      ? <span className="tiny muted">كود الزيت: {picked.code}</span>
+                      ? <span className="tiny muted">كود الزيت: <Iso className="num">{picked.code}</Iso></span>
                       : <span className="tiny muted">طلب خاص — يحتاج تأكيد التوفر</span>}
                   </span>
                 </div>
 
-                <p className="eyebrow">الحجم</p>
-                <div className="grid two">
+                <h2 className="eyebrow" id="size-label">الحجم</h2>
+                {/* الاختيار كان لوناً فقط: «50ml، زر» سواء اختير أم لا. */}
+                <div className="grid two" role="radiogroup" aria-labelledby="size-label">
                   {BOTTLE_SIZES.map((s) => {
                     const available = customPriceFils(s) !== null;
                     return (
-                      <button key={s} className={`btn ${size === s ? "sel" : "ghost"}`} disabled={!available}
+                      <button key={s} role="radio" aria-checked={size === s}
+                        className={`btn ${size === s ? "sel" : "ghost"}`} disabled={!available}
                         title={available ? undefined : UNAVAILABLE_LABEL}
                         onClick={() => setSize(s)}>
-                        {s}{available ? "" : ` — ${UNAVAILABLE_LABEL}`}
+                        <Iso className="num">{s}</Iso>{available ? "" : ` — ${UNAVAILABLE_LABEL}`}
                       </button>
                     );
                   })}
                 </div>
 
-                <p className="eyebrow">الكمية</p>
-                <div className="row">
+                <h2 className="eyebrow" id="qty-label">الكمية</h2>
+                <div className="row" role="group" aria-labelledby="qty-label">
                   <button className="icon-btn" aria-label="أنقص" onClick={() => setQuantity((n) => Math.max(1, n - 1))}>−</button>
                   <span style={{ minWidth: 32, textAlign: "center", fontWeight: 700 }}>{quantity}</span>
                   <button className="icon-btn" aria-label="زد" onClick={() => setQuantity((n) => Math.min(20, n + 1))}>+</button>
                 </div>
 
-                <p className="eyebrow">ملاحظات (اختياري)</p>
+                <h2 className="eyebrow">ملاحظات (اختياري)</h2>
                 <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="أي تفصيل يهمك" />
 
                 <div className="panel" style={{ marginTop: 18 }}>

@@ -27,7 +27,11 @@
   --gold-lo:    #7d5f24;  /* ذهب داكن — حين يلزم الذهب أن يكون نصاً */
   --paper:      #f7f4ef;  /* ورق عاجيّ — سطح القراءة */
   --paper-2:    #efeae2;  /* ورق غائر — الأسطح الثانوية */
-  --line:       #ddd5ca;  /* خيط الورق */
+  --line:       #ddd5ca;  /* خيط الورق — زخرفي فقط: فواصل ومجاميع */
+  /* حدّ العناصر التفاعلية. #ddd5ca كان 1.45:1 على الأبيض و1.33:1 على الورق،
+     وهو الحدّ الوحيد للحقول والبطاقات والرقاقات — أي أقل من 3:1 المطلوبة في
+     WCAG 1.4.11. هذا اللون يقيس 3.73:1 على الأبيض و3.40:1 على الورق. */
+  --line-strong: #8d8375;
   --line-ink:   #362b42;  /* خيط الحبر */
 
   --fg:          #1b1620; /* نص على الورق */
@@ -57,6 +61,13 @@
 }
 
 * { box-sizing: border-box; }
+
+/* نصّ للقارئ وحده — يُعلَن ولا يُرى ولا يزيح شيئاً. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 html { -webkit-text-size-adjust: 100%; }
 html, body, #root { min-height: 100%; }
 
@@ -149,7 +160,7 @@ img { max-width: 100%; display: block; }
 }
 
 /* الأزرار داخل الورق ترث لون الورق لا لون الحبر. */
-.wrap .icon-btn { color: var(--fg); border-color: var(--line); background: #fff; font-size: 15px; }
+.wrap .icon-btn { color: var(--fg); border-color: var(--line-strong); background: #fff; font-size: 15px; }
 .wrap .icon-btn:hover { background: var(--plum-soft); border-color: var(--plum-text); }
 
 /* =============================================================================
@@ -225,6 +236,8 @@ p { margin: 8px 0; }
   letter-spacing: normal;
 }
 .price { font-weight: 700; white-space: nowrap; }
+/* رقم الطلب «STG-92862601» كان ينكسر عند الشرطة بين سطرين. */
+.num { white-space: nowrap; }
 .price-lg { font-size: 23px; line-height: 1.35; }
 .price-na { font-weight: 700; color: var(--danger); font-size: 14px; }
 
@@ -232,7 +245,7 @@ p { margin: 8px 0; }
    الأسطح
    ============================================================================ */
 .card {
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   padding: 16px;
   background: #fff;
@@ -242,7 +255,7 @@ a.card, button.card { display: block; width: 100%; text-align: start; cursor: po
 a.card, button.card, .tile { transition: border-color .18s var(--ease), transform .18s var(--ease); }
 a.card:hover, button.card:hover { border-color: var(--plum-text); transform: translateY(-1px); }
 
-.panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-2); padding: 16px; }
+.panel { border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper-2); padding: 16px; }
 
 .grid { display: grid; gap: 12px; }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -330,7 +343,7 @@ label { display: block; }
 .field {
   width: 100%; min-height: var(--tap);
   padding: 11px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-s);
   background: #fff; color: var(--fg);
   transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
@@ -353,9 +366,9 @@ label { display: block; }
 .btn:active { transform: translateY(1px); }
 .btn[disabled] {
   background: var(--paper-2); color: var(--fg-muted);
-  border-color: var(--line); cursor: not-allowed;
+  border-color: var(--line-strong); cursor: not-allowed;
 }
-.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line); }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line-strong); }
 .btn.ghost:hover { background: var(--plum-soft); border-color: var(--plum-text); color: var(--plum-text); }
 .btn.ghost[disabled] { background: transparent; color: var(--fg-muted); }
 /* المختار — بنفسجي بخيط ذهبي، بلا توهّج. */
@@ -389,7 +402,7 @@ label { display: block; }
 }
 .tile {
   display: flex; flex-direction: column; gap: 3px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   padding: 15px 16px 16px;
   background: #fff;
@@ -412,7 +425,8 @@ label { display: block; }
    الحالات والتنبيهات
    ============================================================================ */
 .state { text-align: center; padding: 46px 16px; }
-.state p:first-of-type { font-family: var(--f-display); font-size: 19px; }
+/* العنوان صار <h1>/<h2> حقيقياً — والمظهر كما كان تماماً. */
+.state .state-title { font-family: var(--f-display); font-size: 19px; font-weight: 700; margin: 0 0 6px; line-height: 1.45; }
 
 .sk {
   background: linear-gradient(100deg, var(--paper-2) 30%, #fbf9f6 50%, var(--paper-2) 70%);
@@ -434,7 +448,8 @@ label { display: block; }
 
 .stepbar { display: flex; gap: 6px; margin: 14px 0 18px; }
 .step { flex: 1; height: 3px; border-radius: 999px; background: var(--line); transition: background .3s var(--ease); }
-.step.on { background: var(--gold); }
+/* الذهب الفاتح كان 1.78:1 مقابل خيط المسار — الذهب الداكن يقيس 4.09:1. */
+.step.on { background: var(--gold-lo); }
 
 .tag {
   display: inline-block; font-size: 12px; font-weight: 700; line-height: 1.7;
@@ -472,7 +487,7 @@ label { display: block; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   min-height: 40px; padding: 6px 14px;
-  border-radius: 999px; border: 1px solid var(--line);
+  border-radius: 999px; border: 1px solid var(--line-strong);
   background: #fff; color: var(--fg); cursor: pointer;
   font-size: 13px; font-weight: 600; width: auto;
   font-family: var(--f-num);

@@ -5,26 +5,32 @@ import type { AsyncState } from "@/lib/useAsync";
 export function Loading({ label = "جاري التحميل…" }: { label?: string }) {
   return (
     <div className="grid" role="status" aria-live="polite" aria-busy="true">
-      <span className="sr-only" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden" }}>{label}</span>
+      <span className="sr-only">{label}</span>
       <div className="sk" /><div className="sk" /><div className="sk" />
     </div>
   );
 }
 
-export function Empty({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
+/**
+ * عنوان الحالة عنوانٌ حقيقي لا فقرة مُنسَّقة: /cart و/checkout كانا يعرضان صفراً
+ * من العناوين حين تفرغ السلة، فلا يجد قارئ الشاشة أي مرساة في الصفحة.
+ */
+export function Empty({ title, hint, action, headingLevel = 1 }: { title: string; hint?: string; action?: ReactNode; headingLevel?: 1 | 2 }) {
+  const H = (headingLevel === 1 ? "h1" : "h2") as "h1" | "h2";
   return (
     <div className="state">
-      <p style={{ fontWeight: 700, marginBottom: 6 }}>{title}</p>
+      <H className="state-title">{title}</H>
       {hint && <p className="muted small" style={{ marginTop: 0 }}>{hint}</p>}
       {action}
     </div>
   );
 }
 
-export function ErrorState({ title = "صار خطأ", hint, onRetry }: { title?: string; hint?: string; onRetry?: () => void }) {
+export function ErrorState({ title = "صار خطأ", hint, onRetry, headingLevel = 2 }: { title?: string; hint?: string; onRetry?: () => void; headingLevel?: 1 | 2 }) {
+  const H = (headingLevel === 1 ? "h1" : "h2") as "h1" | "h2";
   return (
     <div className="state" role="alert">
-      <p style={{ fontWeight: 700, marginBottom: 6 }}>{title}</p>
+      <H className="state-title">{title}</H>
       {hint && <p className="muted small" style={{ marginTop: 0 }}>{hint}</p>}
       {onRetry && <button className="btn ghost" onClick={onRetry} style={{ maxWidth: 220, margin: "14px auto 0" }}>حاول مرة ثانية</button>}
     </div>
@@ -53,8 +59,15 @@ export function Async<T>({
   return <>{children(data)}</>;
 }
 
-/** رسالة تحقّق تحت حقل. */
-export function FieldError({ message }: { message?: string }) {
+/**
+ * رسالة تحقّق تحت حقل.
+ *
+ * المُعرِّف إلزامي: الحقل يشير إليه بـaria-describedby، وبدون ذلك تبقى الرسالة
+ * مرئية وغير مربوطة بشيء — يسمعها قارئ الشاشة ستّ مرات دفعة واحدة بلا أن يعرف
+ * أيّ حقل تخصّ. `role="alert"` يبقى للتصحيح أثناء الكتابة، لا للإرسال الفارغ:
+ * الإرسال ينقل التركيز إلى أول حقل غير صالح فتُقرأ رسالته من وصف الحقل نفسه.
+ */
+export function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
-  return <p className="tiny" role="alert" style={{ color: "var(--danger)", margin: "4px 0 0", fontWeight: 700 }}>{message}</p>;
+  return <p id={id} className="tiny" style={{ color: "var(--danger)", margin: "4px 0 0", fontWeight: 700 }}>{message}</p>;
 }

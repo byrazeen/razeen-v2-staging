@@ -11,6 +11,8 @@ import { useAsync } from "@/lib/useAsync";
 import { formatFils } from "@/lib/pricing";
 import { AdminGate } from "@/components/AdminGate";
 import { Async, Empty } from "@/components/states";
+import { Iso, OrderNumber } from "@/components/text";
+import { productionLabel, shippingLabel } from "@/lib/statusLabels";
 
 export default function ProductionQueue() {
   const state = useAsync(() => repository.listProductionQueue(), []);
@@ -23,7 +25,7 @@ export default function ProductionQueue() {
       <Async
         state={state}
         isEmpty={(orders: Order[]) => orders.length === 0}
-        empty={<Empty title="ما في طلبات مدفوعة" hint="لن يظهر أي طلب هنا قبل نجاح الدفع." />}
+        empty={<Empty title="ما في طلبات مدفوعة" hint="لن يظهر أي طلب هنا قبل نجاح الدفع." headingLevel={2} />}
       >
         {(orders) => (
           <div className="grid list-2" style={{ marginTop: 12 }} data-testid="queue-list">
@@ -31,17 +33,20 @@ export default function ProductionQueue() {
             {orders.filter(isProductionEligible).map((o) => (
               <Link key={o.orderNumber} to={`/admin/orders/${o.orderNumber}`} className="card">
                 <div className="row">
-                  <strong className="num">{o.orderNumber}</strong>
+                  <strong><OrderNumber>{o.orderNumber}</OrderNumber></strong>
                   <span className="price" style={{ marginInlineStart: "auto" }}>{formatFils(o.totalFils)}</span>
                 </div>
                 <span className="tiny muted" style={{ display: "block" }}>{o.customer.name} · {o.customer.address.emirate}</span>
                 <div className="chips" style={{ margin: "10px 0" }}>
-                  <span className="tag flat">التصنيع: {o.productionStatus}</span>
-                  <span className="tag flat">الشحن: {o.shippingStatus}</span>
+                  <span className="tag flat">التصنيع: {productionLabel(o.productionStatus)}</span>
+                  <span className="tag flat">الشحن: {shippingLabel(o.shippingStatus)}</span>
                 </div>
                 {o.lines.map((l) => (
                   <span key={l.id} className="tiny muted" style={{ display: "block" }}>
-                    • {l.title} ×{l.quantity}{l.perfumeCode ? ` · ${l.perfumeCode}` : ""}{l.size ? ` · ${l.size}` : ""}
+                    {/* كل مقطع لاتيني معزول: السطر المختلط كان يُظهر الفاصل ملاصقاً للمقطع الخطأ. */}
+                    • <Iso>{l.title}</Iso> ×<Iso className="num">{l.quantity}</Iso>
+                    {l.perfumeCode ? <> · <Iso className="num">{l.perfumeCode}</Iso></> : null}
+                    {l.size ? <> · <Iso className="num">{l.size}</Iso></> : null}
                   </span>
                 ))}
               </Link>
